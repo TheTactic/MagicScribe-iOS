@@ -1,0 +1,15 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+*.xcscmblueprint
+*.xccheckout
+.DS_Store
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# AI session context — local reference only, same convention as the web repo
+NEW_CLAUDE_CONTEXT*.md
