@@ -10,9 +10,22 @@
 		000000000000000000000120 /* MagicScribe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MagicScribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		538395C130921B590032C58D /* Exceptions for "MagicScribe" folder in "MagicScribe" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 000000000000000100000000 /* MagicScribe */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		000000000000000000000010 /* MagicScribe */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				538395C130921B590032C58D /* Exceptions for "MagicScribe" folder in "MagicScribe" target */,
+			);
 			path = MagicScribe;
 			sourceTree = "<group>";
 		};
@@ -257,6 +270,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MagicScribe/Info.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MagicScribe uses your microphone to let you fill out forms and dictate documents by speaking.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -295,6 +310,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MagicScribe/Info.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MagicScribe uses your microphone to let you fill out forms and dictate documents by speaking.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
