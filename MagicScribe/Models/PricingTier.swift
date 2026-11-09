@@ -60,8 +60,10 @@ extension PricingTier {
     static let voicePro = PricingTier(
         id: .voicePro,
         displayName: "Voice Pro",
-        monthlyPrice: 8,
-        yearlyPrice: 72,
+        // Matches pricing/index.php's real USD figures (usd/usd_annual) —
+        // 25% annual discount, same as the other tiers.
+        monthlyPrice: 12,
+        yearlyPrice: 108,
         seats: 1,
         isCustomPricing: false,
         highlights: [
