@@ -8,10 +8,11 @@ enum PurchaseResult {
 
 enum StoreKitManagerError: Error {
     case unverifiedTransaction
+    case serverVerificationFailed(String)
 }
 
-/// Local entitlement truth via `Transaction.currentEntitlements` — no backend
-/// reconciliation yet (nothing is feature-gated server-side in this MVP).
+/// Local StoreKit state (`purchasedProductIDs`) is a UX hint only — the
+/// server's plan, returned by api/apple_iap_verify.php, is the actual gate.
 /// Backed in development by `Products.storekit` (Simulator-only, zero App
 /// Store Connect setup needed); real products must be created there before
 /// TestFlight/submission.
@@ -20,6 +21,11 @@ enum StoreKitManagerError: Error {
 final class StoreKitManager {
     private(set) var products: [Product] = []
     private(set) var purchasedProductIDs: Set<String> = []
+    /// Set only after api/apple_iap_verify.php confirms the purchase —
+    /// never from local StoreKit state alone.
+    private(set) var verifiedPlan: String?
+
+    private let client: APIClient
 
     // Task.cancel() is thread-safe; deinit runs nonisolated, so this can't be MainActor-isolated.
     // @ObservationIgnored: not UI-facing state, and the Observable macro's tracked-property
@@ -27,7 +33,8 @@ final class StoreKitManager {
     @ObservationIgnored
     private nonisolated(unsafe) var updatesTask: Task<Void, Never>?
 
-    init() {
+    init(client: APIClient = APIClient()) {
+        self.client = client
         updatesTask = Task { @MainActor [weak self] in
             for await update in Transaction.updates {
                 self?.handle(update)
@@ -57,6 +64,17 @@ final class StoreKitManager {
         switch result {
         case .success(let verification):
             let transaction = try checkVerified(verification)
+            // Server verification gates everything past this point — don't
+            // finish the transaction or grant local access until it
+            // succeeds, so a failure leaves StoreKit free to re-surface the
+            // transaction (via Transaction.updates/currentEntitlements) for
+            // a retry instead of losing it.
+            let request = VerifyPurchaseRequest(transactionId: String(transaction.originalID))
+            let response: VerifyPurchaseResponse = try await client.post(.verifyPurchase, body: request, authenticated: true)
+            guard response.success, let plan = response.plan else {
+                throw StoreKitManagerError.serverVerificationFailed(response.error ?? "Couldn't verify your purchase.")
+            }
+            verifiedPlan = plan
             purchasedProductIDs.insert(transaction.productID)
             await transaction.finish()
             return .success

@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// Orphaned, not deleted — iOS v1 ships a single product (Voice Pro), so
+/// there's no tier to pick between and this view isn't reachable from the
+/// active onboarding flow. Kept for a possible future multi-tier revival;
+/// `coordinator.selectTier(_:)` no longer exists, so the button is a no-op
+/// until/unless this comes back.
 struct TierQuizView: View {
     let coordinator: OnboardingCoordinator
 
@@ -29,7 +34,7 @@ struct TierQuizView: View {
             VStack(spacing: 14) {
                 ForEach(options, id: \.tier) { option in
                     Button {
-                        coordinator.selectTier(option.tier)
+                        // No-op — see type doc comment.
                     } label: {
                         HStack {
                             Image(systemName: option.icon)

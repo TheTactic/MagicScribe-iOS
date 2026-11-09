@@ -15,8 +15,13 @@ struct AppPreviewView: View {
                 Text("This is MagicScribe")
                     .font(.title.bold())
                     .foregroundStyle(Color.magicNavy)
-                Text("Speak to fill forms, transcribe documents, and build voice-native forms — no typing required.")
+                Text("Speak, and watch your words become a polished document — no typing required.")
                     .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                Text("Form building and filling are available on the web at magicscribe.tech.")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
@@ -25,7 +30,7 @@ struct AppPreviewView: View {
             Spacer()
 
             Button {
-                coordinator.advance(to: .tierQuiz)
+                coordinator.advance(to: .demoDoc)
             } label: {
                 Text("Next")
                     .frame(maxWidth: .infinity)

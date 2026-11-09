@@ -6,9 +6,6 @@ enum OnboardingStep: Equatable {
     case signup
     case verifyEmail
     case appPreview
-    case tierQuiz
-    case demoFormBuild
-    case demoFormFill
     case demoDoc
     case celebration
     case paywall
@@ -22,27 +19,26 @@ enum OnboardingStep: Equatable {
 @Observable
 final class OnboardingCoordinator {
     private(set) var currentStep: OnboardingStep
-    private(set) var selectedTier: PricingTierID?
 
     /// Captured at signup, used to personalize the Form-Fill demo for free.
     var signupFullName: String = ""
     /// Captured at signup, shown on the verify-email screen ("we sent a code to ___").
     private(set) var signupEmail: String = ""
     private(set) var emailVerified: Bool
-
-    private var demoQueue: [OnboardingStep] = []
-    private var completedAnyDemo = false
+    /// Captured from the same auth response as signupEmail/emailVerified —
+    /// lets the paywall step skip itself for an already-entitled account
+    /// (e.g. an existing web subscriber whose email happens to need
+    /// re-verification in-app) without a separate network call.
+    private(set) var currentUserPlan: String?
 
     private let state: OnboardingState
     var onFinished: (() -> Void)?
 
     init(
         startingAt step: OnboardingStep = .welcome,
-        tier: PricingTierID? = nil,
         state: OnboardingState = OnboardingState()
     ) {
         self.currentStep = step
-        self.selectedTier = tier
         self.state = state
         self.emailVerified = state.cachedEmailVerified
     }
@@ -58,6 +54,7 @@ final class OnboardingCoordinator {
         signupFullName = account.fullName
         signupEmail = account.email
         emailVerified = account.emailVerified
+        currentUserPlan = account.plan
         state.cachedEmailVerified = account.emailVerified
         currentStep = .verifyEmail
     }
@@ -72,32 +69,10 @@ final class OnboardingCoordinator {
         currentStep = .appPreview
     }
 
-    /// Only the demo(s) matching the chosen tier are shown — not the full set —
-    /// so the confetti-then-paywall moment stays causally tied to what's being sold.
-    func selectTier(_ tier: PricingTierID) {
-        selectedTier = tier
-        completedAnyDemo = false
-        demoQueue = Self.demoSteps(for: tier)
-        advanceToNextDemoOrCelebration()
-    }
-
+    /// Celebration only fires if the demo was actually completed, not just
+    /// skipped — the confetti is meant to be earned.
     func completeDemo(_ outcome: DemoOutcome) {
-        if outcome == .completed {
-            completedAnyDemo = true
-        }
-        advanceToNextDemoOrCelebration()
-    }
-
-    /// Celebration only fires if a demo in the chosen tier's set was actually
-    /// completed, not just skipped — the confetti is meant to be earned.
-    private func advanceToNextDemoOrCelebration() {
-        if !demoQueue.isEmpty {
-            currentStep = demoQueue.removeFirst()
-        } else if completedAnyDemo {
-            currentStep = .celebration
-        } else {
-            currentStep = .paywall
-        }
+        currentStep = (outcome == .completed) ? .celebration : .paywall
     }
 
     func declinePaywall() {
@@ -116,18 +91,5 @@ final class OnboardingCoordinator {
     func finishOnboarding() {
         state.hasCompletedOnboarding = true
         onFinished?()
-    }
-
-    /// All three purchasable tiers now share the same three core capabilities
-    /// (voice fill, form building, Docs dictation) — only AI-assist and team
-    /// size differ between them, and the current scripted demos can't
-    /// distinguish those. So every tier gets the same demo set.
-    private static func demoSteps(for tier: PricingTierID) -> [OnboardingStep] {
-        switch tier {
-        case .fillerPro, .builderPro, .business:
-            [.demoFormBuild, .demoFormFill, .demoDoc]
-        case .businessPlus, .enterprise:
-            []
-        }
     }
 }

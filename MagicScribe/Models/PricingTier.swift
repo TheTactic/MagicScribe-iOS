@@ -1,6 +1,7 @@
 import Foundation
 
 enum PricingTierID: String, CaseIterable, Identifiable {
+    case voicePro
     case fillerPro
     case builderPro
     case business
@@ -9,12 +10,13 @@ enum PricingTierID: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// Only these three are surfaced anywhere in the iOS UI right now.
-    /// Business+ and Enterprise are shelved for this version but kept as real data.
+    /// iOS v1 ships Docs (voice dictation) only — Voice Pro is the single
+    /// purchasable product. The old multi-tier set is shelved, not deleted
+    /// (same "kept as real data" treatment Business+/Enterprise already had).
     var isPurchasableNow: Bool {
         switch self {
-        case .fillerPro, .builderPro, .business: true
-        case .businessPlus, .enterprise: false
+        case .voicePro: true
+        case .fillerPro, .builderPro, .business, .businessPlus, .enterprise: false
         }
     }
 }
@@ -55,6 +57,19 @@ struct PricingTier: Identifiable {
 }
 
 extension PricingTier {
+    static let voicePro = PricingTier(
+        id: .voicePro,
+        displayName: "Voice Pro",
+        monthlyPrice: 8,
+        yearlyPrice: 72,
+        seats: 1,
+        isCustomPricing: false,
+        highlights: [
+            FeatureHighlight(systemImageName: "waveform", text: "Voice dictation & editing"),
+            FeatureHighlight(systemImageName: "mic.fill", text: "AI-powered formatting commands"),
+        ]
+    )
+
     static let fillerPro = PricingTier(
         id: .fillerPro,
         displayName: "Filler Pro",
@@ -122,7 +137,7 @@ extension PricingTier {
         ]
     )
 
-    static let all: [PricingTier] = [.fillerPro, .builderPro, .business, .businessPlus, .enterprise]
+    static let all: [PricingTier] = [.voicePro, .fillerPro, .builderPro, .business, .businessPlus, .enterprise]
 
     static func tier(for id: PricingTierID) -> PricingTier {
         guard let match = all.first(where: { $0.id == id }) else {

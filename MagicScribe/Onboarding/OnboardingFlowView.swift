@@ -26,22 +26,21 @@ struct OnboardingFlowView: View {
                 )
             case .appPreview:
                 AppPreviewView(coordinator: coordinator)
-            case .tierQuiz:
-                TierQuizView(coordinator: coordinator)
-            case .demoFormBuild:
-                if coordinator.selectedTier == .fillerPro {
-                    DemoFormBuildManualView(coordinator: coordinator)
-                } else {
-                    DemoFormBuildAIView(coordinator: coordinator)
-                }
-            case .demoFormFill:
-                DemoFormFillView(coordinator: coordinator)
             case .demoDoc:
                 DemoDocView(coordinator: coordinator)
             case .celebration:
                 CelebrationView(coordinator: coordinator)
             case .paywall:
-                PaywallView(coordinator: coordinator)
+                // Single choke point for every path into .paywall (fresh
+                // completion, or declinePaywall's "See plans" ->
+                // reconsiderPaywall()) — an already-entitled account (e.g.
+                // an existing web subscriber) should never see the purchase
+                // screen at all.
+                if let plan = coordinator.currentUserPlan, plan != "free" {
+                    Color.clear.onAppear { coordinator.finishOnboarding() }
+                } else {
+                    PaywallView(coordinator: coordinator)
+                }
             case .declinedPaywall:
                 PaywallDeclinedView(coordinator: coordinator)
             }

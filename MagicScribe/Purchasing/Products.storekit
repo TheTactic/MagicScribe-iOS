@@ -73,14 +73,14 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Voice form filling, AI error check",
-              "displayName" : "Filler Pro (Monthly)",
+              "description" : "Voice dictation & editing",
+              "displayName" : "Voice Pro (Monthly)",
               "locale" : "en_US"
             }
           ],
-          "productID" : "tech.magicscribe.fillerpro.monthly",
+          "productID" : "tech.magicscribe.voicepro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Filler Pro Monthly",
+          "referenceName" : "Voice Pro Monthly",
           "subscriptionGroupID" : "20000000",
           "type" : "RecurringSubscription",
           "winbackOffers" : []
@@ -95,102 +95,14 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Voice form filling, AI error check — ~25% off monthly",
-              "displayName" : "Filler Pro (Yearly)",
+              "description" : "Voice dictation & editing — ~25% off monthly",
+              "displayName" : "Voice Pro (Yearly)",
               "locale" : "en_US"
             }
           ],
-          "productID" : "tech.magicscribe.fillerpro.yearly",
+          "productID" : "tech.magicscribe.voicepro.yearly",
           "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Filler Pro Yearly",
-          "subscriptionGroupID" : "20000000",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : []
-        },
-        {
-          "adHocOffers" : [],
-          "codeOffers" : [],
-          "displayPrice" : "20.00",
-          "familyShareable" : false,
-          "groupNumber" : 2,
-          "internalID" : "20000003",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "Form creation + voice fill + AI build assist",
-              "displayName" : "Builder Pro (Monthly)",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "tech.magicscribe.builderpro.monthly",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Builder Pro Monthly",
-          "subscriptionGroupID" : "20000000",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : []
-        },
-        {
-          "adHocOffers" : [],
-          "codeOffers" : [],
-          "displayPrice" : "180.00",
-          "familyShareable" : false,
-          "groupNumber" : 2,
-          "internalID" : "20000004",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "Form creation + voice fill + AI build assist — ~25% off monthly",
-              "displayName" : "Builder Pro (Yearly)",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "tech.magicscribe.builderpro.yearly",
-          "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Builder Pro Yearly",
-          "subscriptionGroupID" : "20000000",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : []
-        },
-        {
-          "adHocOffers" : [],
-          "codeOffers" : [],
-          "displayPrice" : "49.00",
-          "familyShareable" : false,
-          "groupNumber" : 3,
-          "internalID" : "20000005",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "Everything + Docs features + team management",
-              "displayName" : "Business (Monthly)",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "tech.magicscribe.business.monthly",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Business Monthly",
-          "subscriptionGroupID" : "20000000",
-          "type" : "RecurringSubscription",
-          "winbackOffers" : []
-        },
-        {
-          "adHocOffers" : [],
-          "codeOffers" : [],
-          "displayPrice" : "441.00",
-          "familyShareable" : false,
-          "groupNumber" : 3,
-          "internalID" : "20000006",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "Everything + Docs features + team management — ~25% off monthly",
-              "displayName" : "Business (Yearly)",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "tech.magicscribe.business.yearly",
-          "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Business Yearly",
+          "referenceName" : "Voice Pro Yearly",
           "subscriptionGroupID" : "20000000",
           "type" : "RecurringSubscription",
           "winbackOffers" : []

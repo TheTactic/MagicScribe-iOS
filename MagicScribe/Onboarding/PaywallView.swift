@@ -17,14 +17,12 @@ struct PaywallView: View {
         case yearly
     }
 
-    private var tier: PricingTier {
-        PricingTier.tier(for: coordinator.selectedTier ?? .fillerPro)
-    }
+    private let tier = PricingTier.voicePro
 
-    private var productID: String? {
+    private var productID: String {
         switch billingPeriod {
-        case .monthly: ProductIdentifiers.monthlyID(for: tier.id)
-        case .yearly: ProductIdentifiers.yearlyID(for: tier.id)
+        case .monthly: ProductIdentifiers.voiceProMonthly
+        case .yearly: ProductIdentifiers.voiceProYearly
         }
     }
 
@@ -115,7 +113,7 @@ struct PaywallView: View {
     }
 
     private func purchase() async {
-        guard let productID, let product = storeKit.product(for: productID) else {
+        guard let product = storeKit.product(for: productID) else {
             errorMessage = "This plan isn't available to purchase yet."
             return
         }
@@ -132,6 +130,8 @@ struct PaywallView: View {
             case .pending:
                 errorMessage = "Purchase is pending approval."
             }
+        } catch let StoreKitManagerError.serverVerificationFailed(message) {
+            errorMessage = message
         } catch {
             errorMessage = "Something went wrong — please try again."
         }
@@ -139,6 +139,6 @@ struct PaywallView: View {
 }
 
 #Preview {
-    PaywallView(coordinator: OnboardingCoordinator(startingAt: .paywall, tier: .builderPro))
+    PaywallView(coordinator: OnboardingCoordinator(startingAt: .paywall))
         .environment(StoreKitManager())
 }
