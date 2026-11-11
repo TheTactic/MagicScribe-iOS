@@ -31,6 +31,25 @@ actor APIClient {
         return try await send(request)
     }
 
+    /// For endpoints that use GET + query params instead of a JSON body —
+    /// api/docs.php's `list`/`load` actions, unlike every other endpoint
+    /// called so far, which are all POST.
+    func get<Response: Decodable>(
+        _ endpoint: APIEndpoint,
+        queryItems: [URLQueryItem] = [],
+        authenticated: Bool = false
+    ) async throws -> Response {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent(endpoint.path),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = queryItems
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        try attachAuthIfNeeded(&request, authenticated: authenticated)
+        return try await send(request)
+    }
+
     /// For endpoints expecting multipart/form-data — currently just
     /// speech.php's audio upload. `formFields` are sent as plain text parts
     /// alongside the file (e.g. `language`, `context`).

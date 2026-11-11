@@ -195,11 +195,12 @@ nonisolated struct FormsSaveRequest: Encodable {
     }
 }
 
-/// api/forms.php's `save` action returns `form_id` as a JSON STRING on
-/// insert (PHP's lastInsertId()) but a JSON NUMBER on update (intval()) —
-/// confirmed by direct testing against both code paths, not a guess. This
-/// decodes either.
-nonisolated enum FlexibleFormId: Decodable {
+/// Shared across Forms and Docs — api/forms.php's `save` action returns
+/// `form_id` as a JSON STRING on insert (PHP's lastInsertId()) but a JSON
+/// NUMBER on update (intval()), confirmed by direct testing against both
+/// code paths, not a guess. api/docs.php's `doc_id` uses the identical PHP
+/// idiom, so this decodes either shape regardless of which endpoint sent it.
+nonisolated enum FlexibleId: Decodable {
     case int(Int)
     case string(String)
 
@@ -222,7 +223,7 @@ nonisolated enum FlexibleFormId: Decodable {
 
 nonisolated struct FormsSaveResponse: Decodable {
     let success: Bool
-    let formId: FlexibleFormId?
+    let formId: FlexibleId?
     let error: String?
     let upgrade: Bool?
     let message: String?

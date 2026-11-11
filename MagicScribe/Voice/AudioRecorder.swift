@@ -17,9 +17,15 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
     private var recordingURL: URL?
     private var autoStopTask: Task<Void, Never>?
 
-    /// Safety cap — this is a one-utterance demo field, not open-ended
-    /// dictation, so this is much shorter than the web Filler's 60s cap.
-    private let maxDuration: TimeInterval = 15
+    /// Safety cap. Defaults to 15s (the one-utterance demo/form-field case);
+    /// real continuous dictation (ContinuousDictationController) passes a
+    /// longer chunk duration matching web's ~45-60s chunking cadence.
+    private let maxDuration: TimeInterval
+
+    init(maxDuration: TimeInterval = 15) {
+        self.maxDuration = maxDuration
+        super.init()
+    }
 
     func requestPermission() async -> Bool {
         #if os(iOS)
