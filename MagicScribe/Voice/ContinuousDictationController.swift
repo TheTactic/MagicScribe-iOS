@@ -124,6 +124,19 @@ final class ContinuousDictationController {
                 recorder.discardRecording()
                 guard generation == myGeneration else { return }
 
+                // Discard Whisper hallucinations (silence filler, polite
+                // sign-offs, etc.) — same as web's sendChunkToWhisper.
+                // Most commonly a bare "." from the beat of near-silence
+                // before the user starts speaking. Continue listening
+                // rather than inserting or halting.
+                if WhisperHallucinationFilter.isHallucination(transcript) {
+                    if !isActive {
+                        onHalted?(.userStopped)
+                        return
+                    }
+                    continue
+                }
+
                 let tokens = MagicCommandParser.tokenize(transcript)
                 let result = formattingState.buildRuns(from: tokens)
                 onChunkApplied?(result.text)

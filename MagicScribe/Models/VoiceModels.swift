@@ -79,3 +79,45 @@ nonisolated struct BuildFormResponse: Decodable {
         case formAiContext = "form_ai_context"
     }
 }
+
+/// One addressable unit api/edit.php's Claude prompt can target — web's
+/// `.dictated-chunk` elements don't exist in this single-page iOS model, so
+/// this maps onto the "\n"-delimited paragraphs already produced by
+/// DocHTMLBridge, numbered 1-based to match the prompt's "Line N" framing.
+nonisolated struct EditChunk: Encodable {
+    let id: Int
+    let text: String
+}
+
+nonisolated struct EditRequest: Encodable {
+    let instruction: String
+    let chunks: [EditChunk]
+}
+
+/// One operation Claude returned from api/edit.php — `chunk`/`target`/
+/// `replacement`/`format` are each only present for the operation types
+/// that use them (see DocVoiceEditExecutor.apply(_:to:)).
+nonisolated struct EditOperation: Decodable {
+    let type: String
+    let chunk: Int?
+    let target: String?
+    let replacement: String?
+    let format: String?
+}
+
+/// api/edit.php's response shape. A 402 upgrade-required response still
+/// decodes here (success: false, upgrade: true) — same convention as
+/// FormsService's limitReached handling.
+nonisolated struct EditResponse: Decodable {
+    let success: Bool
+    let operations: [EditOperation]?
+    let error: String?
+    let upgrade: Bool?
+    let message: String?
+    let upgradeUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case success, operations, error, upgrade, message
+        case upgradeUrl = "upgrade_url"
+    }
+}
