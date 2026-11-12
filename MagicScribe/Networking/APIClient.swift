@@ -103,7 +103,14 @@ actor APIClient {
             if httpResponse.statusCode == 401 {
                 throw APIError.unauthorized
             }
-            let message = try? JSONDecoder().decode(ServerErrorMessage.self, from: data).error
+            // Plan-gate 402s (speech.php's docs_minutes, edit.php's
+            // docs_voice_editing) put the human-readable copy under
+            // "message", not "error" — "error" there is just the machine
+            // code "upgrade_required". Prefer "message" when present so
+            // callers matching on APIError.server's message actually get
+            // the friendly text instead of that code.
+            let decoded = try? JSONDecoder().decode(ServerErrorMessage.self, from: data)
+            let message = decoded?.message ?? decoded?.error
             throw APIError.server(status: httpResponse.statusCode, message: message)
         }
 
@@ -116,5 +123,6 @@ actor APIClient {
 }
 
 private nonisolated struct ServerErrorMessage: Decodable {
-    let error: String
+    let error: String?
+    let message: String?
 }

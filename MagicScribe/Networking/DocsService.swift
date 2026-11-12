@@ -5,6 +5,8 @@ nonisolated enum DocsServiceError: Error {
     case loadFailed(String)
     case listFailed(String)
     case deleteFailed(String)
+    case voiceEditFailed(String)
+    case upgradeRequired(String)
 }
 
 /// Wraps api/docs.php's list/load/save/delete actions. `load` collapses
@@ -95,6 +97,28 @@ final class DocsService {
         let response: SimpleSuccessResponse = try await client.post(.docs, body: request, authenticated: true)
         guard response.success else {
             throw DocsServiceError.deleteFailed("Couldn't delete this document.")
+        }
+    }
+
+    /// Sends a spoken instruction + the document's current paragraph
+    /// chunks to api/edit.php, which asks Claude to turn it into one or
+    /// more structured edit operations. Gated server-side by the
+    /// docs_voice_editing plan cap (Voice Pro+) — a 402 there is thrown by
+    /// APIClient.send() as APIError.server before the body ever reaches
+    /// EditResponse's decoder, so that's caught here, not checked on
+    /// `response.upgrade`.
+    func requestVoiceEdit(instruction: String, chunks: [EditChunk]) async throws -> [EditOperation] {
+        let request = EditRequest(instruction: instruction, chunks: chunks)
+        do {
+            let response: EditResponse = try await client.post(.editDoc, body: request, authenticated: true)
+            guard response.success, let operations = response.operations else {
+                throw DocsServiceError.voiceEditFailed(response.error ?? "Couldn't understand that edit.")
+            }
+            return operations
+        } catch let APIError.server(status, message) where status == 402 {
+            throw DocsServiceError.upgradeRequired(
+                message ?? "Voice editing isn't included in your plan. Upgrade to Voice Pro."
+            )
         }
     }
 }

@@ -83,7 +83,7 @@ final class VoiceEditController {
             let chunks = DocVoiceEditExecutor.chunks(from: documentText)
             let operations = try await docsService.requestVoiceEdit(instruction: transcript, chunks: chunks)
             return operations.isEmpty ? .noMatch : .applied(operations)
-        } catch let DocsServiceError.upgradeRequired(message, _) {
+        } catch let DocsServiceError.upgradeRequired(message) {
             return .upgradeRequired(message)
         } catch {
             return .error("Voice edit failed — check your connection and try again.")

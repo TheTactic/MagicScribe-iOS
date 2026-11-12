@@ -27,6 +27,8 @@ struct DocsEditorView: View {
     @State private var undoStack = DocsUndoStack()
     @State private var dictationController: ContinuousDictationController?
     @State private var isDictating = false
+    @State private var voiceEditController: VoiceEditController?
+    @State private var isVoiceEditing = false
     @State private var dictationStatus: String?
 
     private let docsService = DocsService()
@@ -53,7 +55,7 @@ struct DocsEditorView: View {
 
                     TextEditor(text: $text, selection: $selection)
                         .attributedTextFormattingDefinition(DocsFormattingDefinition())
-                        .disabled(isDictating)
+                        .disabled(isDictating || isVoiceEditing)
                         .padding(.horizontal, 4)
 
                     if let dictationStatus {
@@ -152,11 +154,61 @@ struct DocsEditorView: View {
 
                 Spacer(minLength: 8)
 
-                micButton
+                voiceControlsRow
             }
             .padding(.horizontal)
             .padding(.vertical, 6)
         }
+    }
+
+    /// Two explicitly-labeled buttons, not icon-only — an icon alone
+    /// (even something like a plain "edit" glyph) doesn't communicate
+    /// "this starts a voice recording," and web itself doesn't trust an
+    /// icon to carry that meaning either: it renders literal "Dictate" /
+    /// "Voice Edit" text labels next to its own mic buttons. Gold = actively
+    /// listening, for both buttons — one consistent "something is recording
+    /// right now" signal, with the label distinguishing which mode.
+    private var voiceControlsRow: some View {
+        HStack(spacing: 10) {
+            labeledVoiceButton(
+                systemImage: isDictating ? "mic.fill" : "mic",
+                label: isDictating ? "Stop" : "Dictate",
+                isActive: isDictating,
+                disabled: isVoiceEditing
+            ) {
+                Task { await toggleDictation() }
+            }
+
+            labeledVoiceButton(
+                systemImage: isVoiceEditing ? "waveform" : "wand.and.stars",
+                label: isVoiceEditing ? "Stop" : "Voice Edit",
+                isActive: isVoiceEditing,
+                disabled: isDictating
+            ) {
+                Task { await toggleVoiceEdit() }
+            }
+        }
+    }
+
+    private func labeledVoiceButton(
+        systemImage: String,
+        label: String,
+        isActive: Bool,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                Text(label).font(.subheadline.weight(.semibold))
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 44)
+            .foregroundStyle(.white)
+            .background(isActive ? Color.magicGold : Color.magicBlue, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
     }
 
     private func toolbarButton(
@@ -180,18 +232,6 @@ struct DocsEditorView: View {
         }
         .buttonStyle(.plain)
         .disabled(disabled)
-    }
-
-    private var micButton: some View {
-        Button {
-            Task { await toggleDictation() }
-        } label: {
-            Image(systemName: isDictating ? "mic.fill" : "mic")
-                .frame(width: 44, height: 44)
-                .foregroundStyle(.white)
-                .background(isDictating ? Color.magicGold : Color.magicBlue, in: Circle())
-        }
-        .buttonStyle(.plain)
     }
 
     /// Applies the toolbar's just-toggled formatting state to whatever is
@@ -256,6 +296,50 @@ struct DocsEditorView: View {
                 dictationStatus = "Listening — tap the mic again to stop."
             } else {
                 errorMessage = "Microphone access is off — enable it in Settings to dictate."
+            }
+        }
+    }
+
+    // MARK: - Voice Edit
+
+    /// Speak an instruction about the document ("bold the word important",
+    /// "delete the second paragraph") rather than dictating content — a
+    /// one-shot recording, not a chunked/open-span session like dictation.
+    private func toggleVoiceEdit() async {
+        if isVoiceEditing {
+            guard let controller = voiceEditController else { return }
+            dictationStatus = "Working…"
+            let outcome = await controller.finish(documentText: text)
+            isVoiceEditing = false
+            dictationStatus = nil
+            switch outcome {
+            case .undo:
+                performUndo()
+            case .redo:
+                performRedo()
+            case .applied(let operations):
+                undoStack.push(text)
+                let appliedCount = DocVoiceEditExecutor.apply(operations, to: &text)
+                if appliedCount == 0 {
+                    errorMessage = "Couldn't find that text to edit."
+                }
+            case .noMatch:
+                errorMessage = "Didn't catch an edit instruction — try again."
+            case .upgradeRequired(let message):
+                errorMessage = message
+            case .error(let message):
+                errorMessage = message
+            }
+        } else {
+            errorMessage = nil
+            let controller = VoiceEditController(language: { dictationLanguage.rawValue })
+            voiceEditController = controller
+            let started = await controller.start()
+            if started {
+                isVoiceEditing = true
+                dictationStatus = "Listening for your edit instruction — tap again to stop."
+            } else {
+                errorMessage = "Microphone access is off — enable it in Settings to use Voice Edit."
             }
         }
     }

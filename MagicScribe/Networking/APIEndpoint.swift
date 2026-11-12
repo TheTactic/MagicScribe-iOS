@@ -12,6 +12,7 @@ nonisolated enum APIEndpoint {
     case forms
     case verifyPurchase
     case docs
+    case editDoc
 
     var path: String {
         switch self {
@@ -26,6 +27,7 @@ nonisolated enum APIEndpoint {
         case .forms: "/api/forms.php"
         case .verifyPurchase: "/api/apple_iap_verify.php"
         case .docs: "/api/docs.php"
+        case .editDoc: "/api/edit.php"
         }
     }
 }

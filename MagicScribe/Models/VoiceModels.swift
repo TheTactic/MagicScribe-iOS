@@ -105,19 +105,12 @@ nonisolated struct EditOperation: Decodable {
     let format: String?
 }
 
-/// api/edit.php's response shape. A 402 upgrade-required response still
-/// decodes here (success: false, upgrade: true) — same convention as
-/// FormsService's limitReached handling.
+/// api/edit.php's response shape. Its 402 upgrade-required path always
+/// sets a non-2xx HTTP status, which APIClient.send() intercepts as
+/// APIError.server before this ever gets decoded — see
+/// DocsService.requestVoiceEdit(), which catches that instead.
 nonisolated struct EditResponse: Decodable {
     let success: Bool
     let operations: [EditOperation]?
     let error: String?
-    let upgrade: Bool?
-    let message: String?
-    let upgradeUrl: String?
-
-    enum CodingKeys: String, CodingKey {
-        case success, operations, error, upgrade, message
-        case upgradeUrl = "upgrade_url"
-    }
 }

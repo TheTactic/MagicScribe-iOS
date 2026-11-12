@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 nonisolated enum DocVoiceEditMatch {
     case undo
