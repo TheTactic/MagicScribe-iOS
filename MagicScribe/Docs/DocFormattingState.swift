@@ -21,6 +21,24 @@ final class DocFormattingState {
     private(set) var headingLevel: Int?
     private(set) var capsOn = false
 
+    /// nil = inherit the editor's baseline default (Georgia/14, matching
+    /// web's own default toolbar selection) rather than forcing every
+    /// character to carry an explicit font override when nothing was
+    /// changed — mirrors web's CSS-default-unless-overridden behavior.
+    private(set) var fontFamily: String?
+    private(set) var fontSize: CGFloat?
+    private(set) var foregroundColor: Color?
+
+    /// Block-level (apply to a whole paragraph, not a character run) —
+    /// unlike everything else here, these aren't touched by styledRun()/
+    /// dictation at all. Applied via DocsEditorView's
+    /// applyBlockAttributeToSelection(), not currentContainer.
+    private(set) var alignment: AttributedString.TextAlignment?
+    private(set) var listKind: DocsListKind?
+
+    static let availableFontFamilies = ["Georgia", "Arial", "Times New Roman", "Courier New", "Verdana", "Trebuchet MS"]
+    static let availableFontSizes: [CGFloat] = [10, 12, 14, 16, 18, 24, 32, 48]
+
     /// `text` is the styled content built from this chunk's tokens.
     /// `sessionCommands` is `.undo`/`.redo`/`.stop` encountered, in order —
     /// these are session-level signals, not formatting, so the caller
@@ -41,6 +59,29 @@ final class DocFormattingState {
         headingLevel = (headingLevel == level) ? nil : level
     }
 
+    func setFontFamily(_ family: String) {
+        fontFamily = (family == "Georgia") ? nil : family
+    }
+
+    func setFontSize(_ size: CGFloat) {
+        fontSize = (size == 14) ? nil : size
+    }
+
+    func setColor(_ color: Color?) {
+        foregroundColor = color
+    }
+
+    /// Same toggle-off-on-reselect behavior as setHeading — tapping the
+    /// active alignment again resets to the default (left/natural).
+    func setAlignment(_ value: AttributedString.TextAlignment) {
+        alignment = (alignment == value || value == .left) ? nil : value
+    }
+
+    /// Same toggle-off-on-reselect behavior as setHeading.
+    func setListKind(_ kind: DocsListKind) {
+        listKind = (listKind == kind) ? nil : kind
+    }
+
     var currentContainer: AttributeContainer {
         var container = AttributeContainer()
         var intent: InlinePresentationIntent = []
@@ -48,6 +89,21 @@ final class DocFormattingState {
         if italicOn { intent.insert(.emphasized) }
         if !intent.isEmpty { container.inlinePresentationIntent = intent }
         if underlineOn { container.underlineStyle = .single }
+        if let foregroundColor { container.foregroundColor = foregroundColor }
+        // Heading's own font override wins when active — font-family/size
+        // pickers only apply to body (non-heading) text, same precedence
+        // as web, where picking a heading style isn't expected to also
+        // respect whatever the font dropdowns say. fontFamily/fontSizePx
+        // are DocHTMLBridge's own custom attributes (Font has no
+        // introspection surface to recover a family/size from `.font`
+        // alone, so those are the source of truth on render) — `.font`
+        // itself is also set here purely so TextEditor visually reflects
+        // the choice, never read back for serialization.
+        if headingLevel == nil, fontFamily != nil || fontSize != nil {
+            container.fontFamily = fontFamily ?? "Georgia"
+            container.fontSizePx = fontSize ?? 14
+            container.font = .custom(fontFamily ?? "Georgia", size: fontSize ?? 14)
+        }
         return container
     }
 

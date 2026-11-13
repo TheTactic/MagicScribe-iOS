@@ -30,6 +30,7 @@ struct DocsEditorView: View {
     @State private var voiceEditController: VoiceEditController?
     @State private var isVoiceEditing = false
     @State private var dictationStatus: String?
+    @State private var isShowingFormatSheet = false
 
     private let docsService = DocsService()
 
@@ -136,20 +137,20 @@ struct DocsEditorView: View {
 
                 Divider().frame(height: 32)
 
-                ForEach([1, 2, 3], id: \.self) { level in
-                    toolbarButton(text: "H\(level)", isOn: formattingState.headingLevel == level) {
-                        undoStack.push(text)
-                        formattingState.setHeading(level)
-                    }
-                }
-
-                Divider().frame(height: 32)
-
                 toolbarButton(systemImage: "arrow.uturn.backward", isOn: false, disabled: !undoStack.canUndo) {
                     performUndo()
                 }
                 toolbarButton(systemImage: "arrow.uturn.forward", isOn: false, disabled: !undoStack.canRedo) {
                     performRedo()
+                }
+
+                Divider().frame(height: 32)
+
+                // Heading/font family+size/color/alignment/lists all live
+                // in one sheet behind this button instead of flattening
+                // ~16 controls into this row — too many even scrolling.
+                toolbarButton(systemImage: "textformat", isOn: false) {
+                    isShowingFormatSheet = true
                 }
 
                 Spacer(minLength: 8)
@@ -158,6 +159,15 @@ struct DocsEditorView: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 6)
+        }
+        .sheet(isPresented: $isShowingFormatSheet) {
+            DocsFormatSheet(
+                formattingState: formattingState,
+                pushUndo: { undoStack.push(text) },
+                applyInline: applyCurrentFormattingToSelection,
+                applyBlock: applyBlockAttributeToSelection
+            )
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -238,6 +248,9 @@ struct DocsEditorView: View {
     /// currently selected — AttributedTextSelection isn't guaranteed to be
     /// one simple contiguous range, so this goes through the selection-
     /// synchronized transform API rather than assuming a single range.
+    /// Inline-level only (bold/italic/underline/color/font-family/size) —
+    /// block-level attributes (heading/alignment/lists) go through
+    /// applyBlockAttributeToSelection instead.
     private func applyCurrentFormattingToSelection() {
         let container = formattingState.currentContainer
         text.transformAttributes(in: &selection) { attributes in
@@ -247,6 +260,43 @@ struct DocsEditorView: View {
                 attributes.inlinePresentationIntent = nil
             }
             attributes.underlineStyle = container.underlineStyle
+            // Unlike bold/underline, there's no "clear color/font" toggle
+            // in this UI — only apply when the toolbar actually has one
+            // set, otherwise toggling Bold on a colored/custom-font
+            // selection would silently wipe that override out.
+            if let color = container.foregroundColor { attributes.foregroundColor = color }
+            if let family = container.fontFamily { attributes.fontFamily = family }
+            if let sizePx = container.fontSizePx { attributes.fontSizePx = sizePx }
+            if let font = container.font { attributes.font = font }
+        }
+    }
+
+    /// Alignment/heading/list-kind are block-level — unlike bold/italic/
+    /// underline, web's own execCommand('justifyLeft')/formatBlock apply
+    /// to the WHOLE containing block, not a substring, and a list item is
+    /// always a whole paragraph. Expands to every paragraph the selection
+    /// touches (reusing DocVoiceEditExecutor.paragraphRanges(in:) rather
+    /// than re-deriving paragraph boundaries a third time) and applies
+    /// `mutate` to each.
+    private func applyBlockAttributeToSelection(_ mutate: (inout AttributedString, Range<AttributedString.Index>) -> Void) {
+        var selectedRanges: [Range<AttributedString.Index>] = []
+        switch selection.indices(in: text) {
+        case .insertionPoint(let index):
+            selectedRanges = [index..<index]
+        case .ranges(let rangeSet):
+            selectedRanges = Array(rangeSet.ranges)
+        @unknown default:
+            break
+        }
+        guard !selectedRanges.isEmpty else { return }
+
+        for paragraph in DocVoiceEditExecutor.paragraphRanges(in: text) {
+            let overlaps = selectedRanges.contains {
+                $0.lowerBound <= paragraph.upperBound && $0.upperBound >= paragraph.lowerBound
+            }
+            if overlaps {
+                mutate(&text, paragraph)
+            }
         }
     }
 

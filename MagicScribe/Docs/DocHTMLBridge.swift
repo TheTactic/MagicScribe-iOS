@@ -11,9 +11,45 @@ nonisolated struct DocsHeadingLevelAttribute: AttributedStringKey {
     static let name = "DocsHeadingLevel"
 }
 
+/// Paragraph-level, same convention as heading level — stored on a
+/// paragraph's first run, read by DocHTMLBridge.render() to decide whether
+/// consecutive paragraphs should be grouped into one shared <ul>/<ol>.
+nonisolated enum DocsListKind: Int, Sendable, Hashable, Codable {
+    case bullet, numbered
+}
+
+nonisolated struct DocsListKindAttribute: AttributedStringKey {
+    typealias Value = DocsListKind
+    static let name = "DocsListKind"
+}
+
+/// SwiftUI's `Font` has no introspection surface to read a family name or
+/// point size back out of an arbitrary value (unlike `Color.resolve(in:)`),
+/// so family/size are tracked as their own small custom attributes — the
+/// closed-vocabulary-custom-key pattern, not fighting an opaque system
+/// type. The visual `.font` attribute is still set separately (derived
+/// from these two) purely for TextEditor's own rendering; DocHTMLBridge's
+/// render() always reads these, never decomposes `.font`.
+nonisolated struct DocsFontFamilyAttribute: AttributedStringKey {
+    typealias Value = String
+    static let name = "DocsFontFamily"
+}
+
+nonisolated struct DocsFontSizeAttribute: AttributedStringKey {
+    typealias Value = CGFloat
+    static let name = "DocsFontSize"
+}
+
+/// Holds this app's own custom attributes (not part of DocsAttributeScope
+/// below, which exists only for attributes that need a ValueConstraint —
+/// these never do, since they're only ever set by this app's own toolbar/
+/// magic-command code, never by the system's built-in formatting controls).
 extension AttributeScopes {
     struct DocsHeadingScope: AttributeScope {
         let headingLevel: DocsHeadingLevelAttribute
+        let listKind: DocsListKindAttribute
+        let fontFamily: DocsFontFamilyAttribute
+        let fontSizePx: DocsFontSizeAttribute
     }
     var docsHeading: DocsHeadingScope.Type { DocsHeadingScope.self }
 }
@@ -35,6 +71,7 @@ extension AttributeDynamicLookup {
 nonisolated struct DocsAttributeScope: AttributeScope {
     let inlinePresentationIntent: AttributeScopes.FoundationAttributes.InlinePresentationIntentAttribute
     let underlineStyle: AttributeScopes.SwiftUIAttributes.UnderlineStyleAttribute
+    let textAlignment: AttributeScopes.CoreTextAttributes.TextAlignmentAttribute
 }
 
 extension AttributeScopes {
@@ -53,6 +90,11 @@ nonisolated struct DocsFormattingDefinition: AttributedTextFormattingDefinition 
             values: [nil, .single],
             default: nil
         )
+        AttributedTextFormatting.ValueConstraint(
+            for: \.textAlignment,
+            values: [nil, .left, .center, .right],
+            default: nil
+        )
     }
 }
 
@@ -66,9 +108,16 @@ nonisolated struct DocsFormattingDefinition: AttributedTextFormattingDefinition 
 /// reader produces generic TextKit attributes that don't match this
 /// editor's closed attribute vocabulary.
 enum DocHTMLBridge {
+    // 3rd capture group = raw attribute string (face="..."/color="..."/
+    // style="...") — discarded by every tag that doesn't use it, parsed
+    // further below for font/p/h1-3 tags.
     private static let tagRegex: NSRegularExpression = {
-        try! NSRegularExpression(pattern: "<(/?)(\\w+)[^>]*>")
+        try! NSRegularExpression(pattern: "<(/?)(\\w+)([^>]*)>")
     }()
+    private static let faceAttrRegex = try! NSRegularExpression(pattern: #"face="([^"]*)""#)
+    private static let colorAttrRegex = try! NSRegularExpression(pattern: #"\bcolor="([^"]*)""#)
+    private static let fontSizeStyleRegex = try! NSRegularExpression(pattern: #"font-size:\s*(\d+)px"#)
+    private static let textAlignStyleRegex = try! NSRegularExpression(pattern: #"text-align:\s*(\w+)"#)
 
     // MARK: - Parse: HTML -> AttributedString
 
@@ -83,6 +132,16 @@ enum DocHTMLBridge {
         var italicDepth = 0
         var underlineDepth = 0
         var headingLevel: Int?
+        var paragraphAlignment: AttributedString.TextAlignment?
+        var listContext: DocsListKind?
+        // Stacks for web's real nested-<font>-tag behavior: innermost
+        // wins for whichever of face/color/size it specifies, inheriting
+        // whatever was active before for anything it doesn't. First
+        // element is always the "no override" baseline so `.last!` is
+        // never empty.
+        var fontFamilyStack: [String?] = [nil]
+        var fontColorStack: [Color?] = [nil]
+        var fontSizeStack: [CGFloat?] = [nil]
 
         func appendText(_ raw: String) {
             let unescaped = unescapeEntities(raw)
@@ -93,9 +152,25 @@ enum DocHTMLBridge {
             if italicDepth > 0 { intent.insert(.emphasized) }
             if !intent.isEmpty { run.inlinePresentationIntent = intent }
             if underlineDepth > 0 { run.underlineStyle = .single }
+
+            let family = fontFamilyStack.last!
+            let sizePx = fontSizeStack.last!
+            if family != nil || sizePx != nil {
+                run.fontFamily = family ?? "Georgia"
+                run.fontSizePx = sizePx ?? 14
+                run.font = .custom(family ?? "Georgia", size: sizePx ?? 14)
+            }
+            if let color = fontColorStack.last! { run.foregroundColor = color }
+
             if let headingLevel {
                 run.headingLevel = headingLevel
                 run.font = headingFont(for: headingLevel)
+            }
+            if let paragraphAlignment {
+                run[AttributeScopes.CoreTextAttributes.TextAlignmentAttribute.self] = paragraphAlignment
+            }
+            if let listContext {
+                run.listKind = listContext
             }
             result += run
         }
@@ -107,17 +182,27 @@ enum DocHTMLBridge {
             }
             let isClosing = ns.substring(with: match.range(at: 1)) == "/"
             let tag = ns.substring(with: match.range(at: 2)).lowercased()
+            let attrRange = match.range(at: 3)
+            let attrString = attrRange.location != NSNotFound ? ns.substring(with: attrRange) : ""
 
             if isClosing {
                 switch tag {
                 case "b", "strong": boldDepth = max(0, boldDepth - 1)
                 case "i", "em": italicDepth = max(0, italicDepth - 1)
                 case "u": underlineDepth = max(0, underlineDepth - 1)
+                case "font":
+                    if fontFamilyStack.count > 1 { fontFamilyStack.removeLast() }
+                    if fontColorStack.count > 1 { fontColorStack.removeLast() }
+                    if fontSizeStack.count > 1 { fontSizeStack.removeLast() }
                 case "h1", "h2", "h3":
                     headingLevel = nil
+                    paragraphAlignment = nil
                     result += AttributedString("\n")
-                case "p":
+                case "p", "li":
+                    paragraphAlignment = nil
                     result += AttributedString("\n")
+                case "ul", "ol":
+                    listContext = nil
                 default: break
                 }
             } else {
@@ -125,11 +210,23 @@ enum DocHTMLBridge {
                 case "b", "strong": boldDepth += 1
                 case "i", "em": italicDepth += 1
                 case "u": underlineDepth += 1
+                case "font":
+                    let face = firstMatch(faceAttrRegex, in: attrString)
+                    let colorHex = firstMatch(colorAttrRegex, in: attrString)
+                    let sizePx = firstMatch(fontSizeStyleRegex, in: attrString).flatMap { Double($0) }.map { CGFloat($0) }
+                    fontFamilyStack.append(face ?? fontFamilyStack.last!)
+                    fontColorStack.append(colorHex.flatMap { colorFromHex($0) } ?? fontColorStack.last!)
+                    fontSizeStack.append(sizePx ?? fontSizeStack.last!)
                 case "h1": headingLevel = 1
                 case "h2": headingLevel = 2
                 case "h3": headingLevel = 3
+                case "ul": listContext = .bullet
+                case "ol": listContext = .numbered
                 case "br": result += AttributedString("\n")
                 default: break
+                }
+                if tag == "p" || tag == "h1" || tag == "h2" || tag == "h3" {
+                    paragraphAlignment = firstMatch(textAlignStyleRegex, in: attrString).flatMap { alignmentFromKeyword($0) }
                 }
             }
             cursor = matchRange.location + matchRange.length
@@ -148,15 +245,28 @@ enum DocHTMLBridge {
 
     // MARK: - Render: AttributedString -> HTML
 
+    private struct ParagraphInfo {
+        let tag: String
+        let listKind: DocsListKind?
+        let alignment: AttributedString.TextAlignment?
+        let innerHTML: String
+    }
+
     static func render(_ text: AttributedString) -> String {
-        var html = ""
+        var paragraphs: [ParagraphInfo] = []
         var paragraphRun = AttributedString()
 
         func flushParagraph() {
             guard !paragraphRun.characters.isEmpty else { return }
-            let level = paragraphRun.runs.first?.headingLevel
+            let firstRun = paragraphRun.runs.first
+            let level = firstRun?.headingLevel
             let tag = level.map { "h\($0)" } ?? "p"
-            html += "<\(tag)>" + renderInline(paragraphRun) + "</\(tag)>"
+            paragraphs.append(ParagraphInfo(
+                tag: tag,
+                listKind: firstRun?.listKind,
+                alignment: firstRun?[AttributeScopes.CoreTextAttributes.TextAlignmentAttribute.self],
+                innerHTML: renderInline(paragraphRun)
+            ))
             paragraphRun = AttributedString()
         }
 
@@ -169,11 +279,34 @@ enum DocHTMLBridge {
             }
         }
         flushParagraph()
+
+        // Group consecutive same-kind list paragraphs into one shared
+        // <ul>/<ol> wrapping multiple <li> — a list item is never its own
+        // standalone element, matching web's real DOM shape.
+        var html = ""
+        var index = 0
+        while index < paragraphs.count {
+            let paragraph = paragraphs[index]
+            if let listKind = paragraph.listKind {
+                let wrapper = listKind == .bullet ? "ul" : "ol"
+                html += "<\(wrapper)>"
+                while index < paragraphs.count, paragraphs[index].listKind == listKind {
+                    html += "<li>" + paragraphs[index].innerHTML + "</li>"
+                    index += 1
+                }
+                html += "</\(wrapper)>"
+            } else {
+                let styleAttr = paragraph.alignment.map { " style=\"text-align:\(keywordFromAlignment($0))\"" } ?? ""
+                html += "<\(paragraph.tag)\(styleAttr)>" + paragraph.innerHTML + "</\(paragraph.tag)>"
+                index += 1
+            }
+        }
         return html
     }
 
-    /// Renders the inline b/i/u runs within a single paragraph/heading's
-    /// worth of content — no block-level concerns here, just nested tags.
+    /// Renders the inline b/i/u/font runs within a single paragraph/
+    /// heading/list-item's worth of content — no block-level concerns
+    /// here, just nested tags.
     private static func renderInline(_ text: AttributedString) -> String {
         var html = ""
         for run in text.runs {
@@ -184,8 +317,25 @@ enum DocHTMLBridge {
             if intent.contains(.emphasized) { openTags.append("i") }
             if run.underlineStyle == .single { openTags.append("u") }
 
-            let opening = openTags.map { "<\($0)>" }.joined()
-            let closing = openTags.reversed().map { "</\($0)>" }.joined()
+            // Skipped entirely when family/size are at baseline default
+            // and there's no color override, matching web's own "only
+            // wrap on explicit override" behavior — default-styled text
+            // stays clean, same reasoning as the baseline-skip in
+            // DocFormattingState.setFontFamily/setFontSize.
+            var fontAttrs = ""
+            if let family = run.fontFamily, family != "Georgia" {
+                fontAttrs += " face=\"\(family)\""
+            }
+            if let color = run.foregroundColor {
+                fontAttrs += " color=\"\(hexFromColor(color))\""
+            }
+            if let sizePx = run.fontSizePx, sizePx != 14 {
+                fontAttrs += " style=\"font-size:\(Int(sizePx))px\""
+            }
+            let hasFontWrapper = !fontAttrs.isEmpty
+
+            let opening = openTags.map { "<\($0)>" }.joined() + (hasFontWrapper ? "<font\(fontAttrs)>" : "")
+            let closing = (hasFontWrapper ? "</font>" : "") + openTags.reversed().map { "</\($0)>" }.joined()
             html += opening + runText + closing
         }
         return html
@@ -218,5 +368,54 @@ enum DocHTMLBridge {
         s.replacingOccurrences(of: "&", with: "&amp;") // must be first
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
+    }
+
+    // MARK: - Attribute string parsing helpers
+
+    /// Extracts the first capture group of `regex`'s first match in `s`,
+    /// or nil if there's no match — used for pulling face="..."/color="..."
+    /// /font-size:...px/text-align:... out of a tag's raw attribute string.
+    private static func firstMatch(_ regex: NSRegularExpression, in s: String) -> String? {
+        guard !s.isEmpty else { return nil }
+        let ns = s as NSString
+        guard let match = regex.firstMatch(in: s, range: NSRange(location: 0, length: ns.length)),
+              match.numberOfRanges > 1 else { return nil }
+        let range = match.range(at: 1)
+        guard range.location != NSNotFound else { return nil }
+        return ns.substring(with: range)
+    }
+
+    private static func colorFromHex(_ hex: String) -> Color? {
+        var h = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if h.hasPrefix("#") { h.removeFirst() }
+        guard h.count == 6, let value = UInt32(h, radix: 16) else { return nil }
+        return Color(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
+    }
+
+    private static func hexFromColor(_ color: Color) -> String {
+        let resolved = color.resolve(in: EnvironmentValues())
+        func clamp(_ v: Float) -> Int { min(255, max(0, Int((v * 255).rounded()))) }
+        return String(format: "#%02x%02x%02x", clamp(resolved.red), clamp(resolved.green), clamp(resolved.blue))
+    }
+
+    private static func alignmentFromKeyword(_ keyword: String) -> AttributedString.TextAlignment? {
+        switch keyword.lowercased() {
+        case "center": .center
+        case "right": .right
+        case "left": .left
+        default: nil
+        }
+    }
+
+    private static func keywordFromAlignment(_ alignment: AttributedString.TextAlignment) -> String {
+        switch alignment {
+        case .center: "center"
+        case .right: "right"
+        default: "left"
+        }
     }
 }
