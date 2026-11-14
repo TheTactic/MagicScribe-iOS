@@ -116,49 +116,60 @@ struct DocsEditorView: View {
 
     // MARK: - Formatting toolbar
 
+    /// Two rows, not one — Dictate/Voice Edit are this app's whole reason
+    /// for existing, so they get their own always-visible, never-clipped
+    /// row rather than competing for width with the formatting icons
+    /// inside a horizontal scroll strip (where they were getting pushed
+    /// off-screen). Bold/Italic/Underline/Undo/Redo stay as quick,
+    /// single-tap icons rather than moving into the Format sheet — they're
+    /// the highest-frequency actions in the editor (Undo especially, as
+    /// the main way to recover from a bad dictation/Voice Edit result),
+    /// and burying the most-used actions behind a sheet tap would be a
+    /// net UX loss even though it would "consolidate" the icon count.
     private var formattingToolbar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                toolbarButton(systemImage: "bold", isOn: formattingState.boldOn) {
-                    undoStack.push(text)
-                    formattingState.toggleBold()
-                    applyCurrentFormattingToSelection()
-                }
-                toolbarButton(systemImage: "italic", isOn: formattingState.italicOn) {
-                    undoStack.push(text)
-                    formattingState.toggleItalic()
-                    applyCurrentFormattingToSelection()
-                }
-                toolbarButton(systemImage: "underline", isOn: formattingState.underlineOn) {
-                    undoStack.push(text)
-                    formattingState.toggleUnderline()
-                    applyCurrentFormattingToSelection()
-                }
+        VStack(spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    toolbarButton(systemImage: "bold", isOn: formattingState.boldOn) {
+                        undoStack.push(text)
+                        formattingState.toggleBold()
+                        applyCurrentFormattingToSelection()
+                    }
+                    toolbarButton(systemImage: "italic", isOn: formattingState.italicOn) {
+                        undoStack.push(text)
+                        formattingState.toggleItalic()
+                        applyCurrentFormattingToSelection()
+                    }
+                    toolbarButton(systemImage: "underline", isOn: formattingState.underlineOn) {
+                        undoStack.push(text)
+                        formattingState.toggleUnderline()
+                        applyCurrentFormattingToSelection()
+                    }
 
-                Divider().frame(height: 32)
+                    Divider().frame(height: 32)
 
-                toolbarButton(systemImage: "arrow.uturn.backward", isOn: false, disabled: !undoStack.canUndo) {
-                    performUndo()
+                    toolbarButton(systemImage: "arrow.uturn.backward", isOn: false, disabled: !undoStack.canUndo) {
+                        performUndo()
+                    }
+                    toolbarButton(systemImage: "arrow.uturn.forward", isOn: false, disabled: !undoStack.canRedo) {
+                        performRedo()
+                    }
+
+                    Divider().frame(height: 32)
+
+                    // Heading/font family+size/color/alignment/lists all
+                    // live in one sheet behind this button instead of
+                    // flattening ~16 controls into this row.
+                    toolbarButton(systemImage: "textformat", isOn: false) {
+                        isShowingFormatSheet = true
+                    }
                 }
-                toolbarButton(systemImage: "arrow.uturn.forward", isOn: false, disabled: !undoStack.canRedo) {
-                    performRedo()
-                }
-
-                Divider().frame(height: 32)
-
-                // Heading/font family+size/color/alignment/lists all live
-                // in one sheet behind this button instead of flattening
-                // ~16 controls into this row — too many even scrolling.
-                toolbarButton(systemImage: "textformat", isOn: false) {
-                    isShowingFormatSheet = true
-                }
-
-                Spacer(minLength: 8)
-
-                voiceControlsRow
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 6)
+
+            voiceControlsRow
+                .padding(.horizontal)
+                .padding(.bottom, 6)
         }
         .sheet(isPresented: $isShowingFormatSheet) {
             DocsFormatSheet(
@@ -212,7 +223,7 @@ struct DocsEditorView: View {
                 Image(systemName: systemImage)
                 Text(label).font(.subheadline.weight(.semibold))
             }
-            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity)
             .frame(height: 44)
             .foregroundStyle(.white)
             .background(isActive ? Color.magicGold : Color.magicBlue, in: Capsule())
