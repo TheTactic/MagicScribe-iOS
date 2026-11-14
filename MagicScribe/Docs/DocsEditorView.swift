@@ -166,6 +166,7 @@ struct DocsEditorView: View {
                 }
                 .padding(.horizontal)
             }
+            .padding(.top, 6)
 
             voiceControlsRow
                 .padding(.horizontal)
