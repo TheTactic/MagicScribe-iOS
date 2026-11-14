@@ -21,6 +21,7 @@ struct OnboardingFlowView: View {
             case .verifyEmail:
                 VerifyEmailView(
                     email: coordinator.signupEmail,
+                    initialDeliveryFailed: coordinator.initialEmailDeliveryFailed,
                     onVerified: { coordinator.verifyEmailSucceeded() },
                     onDismiss: { coordinator.skipEmailVerification() }
                 )

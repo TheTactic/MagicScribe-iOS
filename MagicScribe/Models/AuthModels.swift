@@ -17,6 +17,16 @@ nonisolated struct UserAccount: Codable, Identifiable {
 nonisolated struct AuthTokenResponse: Decodable {
     let token: String
     let user: UserAccount
+    /// Only ever present (and meaningful) on register_token.php's response
+    /// — login doesn't send a verification email, so this key is simply
+    /// absent there and decodes to nil, which is fine since login never
+    /// reads it.
+    let emailDeliveryFailed: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case token, user
+        case emailDeliveryFailed = "email_delivery_failed"
+    }
 }
 
 nonisolated struct AuthTokenRequest: Encodable {
@@ -51,6 +61,19 @@ nonisolated struct VerifyEmailCodeRequest: Encodable {
 
 nonisolated struct SimpleSuccessResponse: Decodable {
     let success: Bool
+}
+
+/// resend_verification_code.php's specific response shape — kept separate
+/// from the generic SimpleSuccessResponse, which unrelated callers
+/// (DocsService.delete, FormsService.delete) also decode into.
+nonisolated struct ResendVerificationResponse: Decodable {
+    let success: Bool
+    let emailDeliveryFailed: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case success
+        case emailDeliveryFailed = "email_delivery_failed"
+    }
 }
 
 /// For authenticated POST calls with no meaningful request body (e.g. resend).

@@ -30,11 +30,15 @@ final class AuthService {
     /// Issues a token immediately even though the new account is unverified —
     /// confirmed product decision. See `verifyEmailCode`/`resendVerificationCode`
     /// for the in-app (not a browser link) verification flow.
-    func register(email: String, password: String, fullName: String) async throws -> UserAccount {
+    ///
+    /// `emailDeliveryFailed` reflects a real SendGrid suppression check the
+    /// backend runs right after sending — true means the verification
+    /// email almost certainly never arrived (not just "might be in spam").
+    func register(email: String, password: String, fullName: String) async throws -> (user: UserAccount, emailDeliveryFailed: Bool) {
         let request = RegisterTokenRequest(email: email, password: password, fullName: fullName, deviceLabel: deviceLabel)
         let response: AuthTokenResponse = try await client.post(.registerToken, body: request)
         try tokenStore.save(token: response.token)
-        return response.user
+        return (response.user, response.emailDeliveryFailed ?? false)
     }
 
     /// For an unverified account that lost its token (signed out, reinstalled)
@@ -56,9 +60,13 @@ final class AuthService {
         )
     }
 
-    func resendVerificationCode() async throws {
-        let _: SimpleSuccessResponse = try await client.post(
+    /// Returns true if the resend almost certainly failed to actually
+    /// deliver (SendGrid suppression check), same signal as `register`.
+    @discardableResult
+    func resendVerificationCode() async throws -> Bool {
+        let response: ResendVerificationResponse = try await client.post(
             .resendVerificationCode, body: EmptyRequestBody(), authenticated: true
         )
+        return response.emailDeliveryFailed ?? false
     }
 }

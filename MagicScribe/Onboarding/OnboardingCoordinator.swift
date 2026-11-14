@@ -25,6 +25,11 @@ final class OnboardingCoordinator {
     /// Captured at signup, shown on the verify-email screen ("we sent a code to ___").
     private(set) var signupEmail: String = ""
     private(set) var emailVerified: Bool
+    /// Captured at signup only (not from LoginView's recoverVerification
+    /// path, which doesn't run the SendGrid suppression check) — read once
+    /// by VerifyEmailView on first appearance to show an upfront warning
+    /// instead of leaving the user to wonder why no email ever arrives.
+    private(set) var initialEmailDeliveryFailed = false
     /// Captured from the same auth response as signupEmail/emailVerified —
     /// lets the paywall step skip itself for an already-entitled account
     /// (e.g. an existing web subscriber whose email happens to need
@@ -50,11 +55,12 @@ final class OnboardingCoordinator {
     /// Called right after a successful signup, or after `LoginView` recovers an
     /// unverified account via `AuthService.recoverVerification` — either way,
     /// advances into the (skippable) in-app verification code screen.
-    func recordSignupAccount(_ account: UserAccount) {
+    func recordSignupAccount(_ account: UserAccount, emailDeliveryFailed: Bool = false) {
         signupFullName = account.fullName
         signupEmail = account.email
         emailVerified = account.emailVerified
         currentUserPlan = account.plan
+        initialEmailDeliveryFailed = emailDeliveryFailed
         state.cachedEmailVerified = account.emailVerified
         currentStep = .verifyEmail
     }

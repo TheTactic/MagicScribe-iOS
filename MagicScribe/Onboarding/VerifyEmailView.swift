@@ -6,6 +6,10 @@ import SwiftUI
 /// as PaywallDeclinedView's reusability note.
 struct VerifyEmailView: View {
     let email: String
+    /// True when the backend's SendGrid suppression check found this
+    /// address already bouncing/blocked/spam-reported at signup time — a
+    /// real signal the email almost certainly never arrived, not a guess.
+    var initialDeliveryFailed: Bool = false
     let onVerified: () -> Void
     let onDismiss: () -> Void
 
@@ -14,6 +18,7 @@ struct VerifyEmailView: View {
     @State private var isResending = false
     @State private var errorMessage: String?
     @State private var resendConfirmation: String?
+    @State private var deliveryWarning: String?
     @State private var resendCooldown = 0
     @FocusState private var isCodeFieldFocused: Bool
 
@@ -52,6 +57,16 @@ struct VerifyEmailView: View {
                     }
                 }
 
+            // Visually distinct from errorMessage (red = "you did something
+            // wrong," this is "we did something wrong") — shown upfront if
+            // the backend's suppression check already flagged this address
+            // at signup, and again if a resend hits the same problem.
+            if let deliveryWarning {
+                Label(deliveryWarning, systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+            }
             if let errorMessage {
                 Text(errorMessage)
                     .font(.footnote)
@@ -94,7 +109,12 @@ struct VerifyEmailView: View {
             }
         }
         .padding()
-        .onAppear { isCodeFieldFocused = true }
+        .onAppear {
+            isCodeFieldFocused = true
+            if initialDeliveryFailed {
+                deliveryWarning = "We had trouble delivering that email — double-check the address is correct, or tap Resend to try again."
+            }
+        }
     }
 
     private func submit() async {
@@ -116,11 +136,16 @@ struct VerifyEmailView: View {
     private func resend() async {
         errorMessage = nil
         resendConfirmation = nil
+        deliveryWarning = nil
         isResending = true
         defer { isResending = false }
         do {
-            try await authService.resendVerificationCode()
-            resendConfirmation = "A new code is on its way."
+            let failed = try await authService.resendVerificationCode()
+            if failed {
+                deliveryWarning = "That attempt had the same problem — this address may be bouncing. Double-check it, or tap Skip for now."
+            } else {
+                resendConfirmation = "A new code is on its way."
+            }
             startResendCooldown()
         } catch let APIError.server(_, message) {
             errorMessage = message ?? "Couldn't send a new code — try again shortly."

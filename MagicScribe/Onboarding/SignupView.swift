@@ -117,8 +117,8 @@ struct SignupView: View {
         isSubmitting = true
         defer { isSubmitting = false }
         do {
-            let account = try await authService.register(email: email, password: password, fullName: fullName)
-            coordinator.recordSignupAccount(account)
+            let result = try await authService.register(email: email, password: password, fullName: fullName)
+            coordinator.recordSignupAccount(result.user, emailDeliveryFailed: result.emailDeliveryFailed)
         } catch let APIError.server(_, message) {
             // Surface the backend's real reason (rate limit, duplicate email, etc.)
             // instead of a blanket message that makes a correctly-working rejection
