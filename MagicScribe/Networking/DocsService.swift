@@ -107,8 +107,8 @@ final class DocsService {
     /// APIClient.send() as APIError.server before the body ever reaches
     /// EditResponse's decoder, so that's caught here, not checked on
     /// `response.upgrade`.
-    func requestVoiceEdit(instruction: String, chunks: [EditChunk]) async throws -> [EditOperation] {
-        let request = EditRequest(instruction: instruction, chunks: chunks)
+    func requestVoiceEdit(instruction: String, chunks: [EditChunk], context: String? = nil) async throws -> [EditOperation] {
+        let request = EditRequest(instruction: instruction, chunks: chunks, context: context)
         do {
             let response: EditResponse = try await client.post(.editDoc, body: request, authenticated: true)
             guard response.success, let operations = response.operations else {

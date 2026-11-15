@@ -24,17 +24,23 @@ final class VoiceEditController {
     private let speechService: SpeechService
     private let docsService: DocsService
     private let languageProvider: () -> String
+    /// Only set to "ios_onboarding_demo_docs" by DocsEditorView's
+    /// onboarding mode — bypasses the docs_voice_editing plan gate
+    /// server-side. nil for every real app usage.
+    private let context: String?
     private var recorder: AudioRecorder?
 
     init(
         speechService: SpeechService? = nil,
         docsService: DocsService = DocsService(),
+        context: String? = nil,
         language: @escaping () -> String
     ) {
         // Constructed in the body, not as a default argument value — same
         // reason as ContinuousDictationController's identical pattern.
         self.speechService = speechService ?? SpeechService()
         self.docsService = docsService
+        self.context = context
         self.languageProvider = language
     }
 
@@ -81,7 +87,7 @@ final class VoiceEditController {
             }
 
             let chunks = DocVoiceEditExecutor.chunks(from: documentText)
-            let operations = try await docsService.requestVoiceEdit(instruction: transcript, chunks: chunks)
+            let operations = try await docsService.requestVoiceEdit(instruction: transcript, chunks: chunks, context: context)
             return operations.isEmpty ? .noMatch : .applied(operations)
         } catch let DocsServiceError.upgradeRequired(message) {
             return .upgradeRequired(message)

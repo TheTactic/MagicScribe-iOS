@@ -92,6 +92,13 @@ nonisolated struct EditChunk: Encodable {
 nonisolated struct EditRequest: Encodable {
     let instruction: String
     let chunks: [EditChunk]
+    /// Only set during onboarding ("ios_onboarding_demo_docs") — bypasses
+    /// the docs_voice_editing plan gate server-side. nil for every real
+    /// app call; Swift's auto-synthesized Encodable uses encodeIfPresent
+    /// for Optional properties, so nil omits the key entirely rather than
+    /// encoding `"context":null`, matching the request shape before this
+    /// field existed.
+    let context: String?
 }
 
 /// One operation Claude returned from api/edit.php — `chunk`/`target`/

@@ -9,6 +9,16 @@ import SwiftUI
 struct DocsEditorView: View {
     let docId: Int?
     let onSaved: () -> Void
+    /// Default false (set in init) preserves the real Docs tab exactly as
+    /// before — true only for onboarding's "try it" step, where this
+    /// editor doubles as the user's actual first saved document rather
+    /// than a disposable demo. Gates: the sample-dictation hint card,
+    /// "Save & Continue" copy, star confetti on save, and the Voice Edit
+    /// plan-gate bypass.
+    let isOnboardingDemo: Bool
+    /// Only meaningful (and shown) when isOnboardingDemo is true — the
+    /// real Docs tab has no concept of "skip," only onboarding does.
+    let onSkipped: (() -> Void)?
 
     @State private var title: String = "Untitled Document"
     @State private var text = AttributedString()
@@ -31,12 +41,20 @@ struct DocsEditorView: View {
     @State private var isVoiceEditing = false
     @State private var dictationStatus: String?
     @State private var isShowingFormatSheet = false
+    @State private var showSaveConfetti = false
 
     private let docsService = DocsService()
 
-    init(docId: Int?, onSaved: @escaping () -> Void) {
+    init(
+        docId: Int?,
+        onSaved: @escaping () -> Void,
+        isOnboardingDemo: Bool = false,
+        onSkipped: (() -> Void)? = nil
+    ) {
         self.docId = docId
         self.onSaved = onSaved
+        self.isOnboardingDemo = isOnboardingDemo
+        self.onSkipped = onSkipped
         _isLoading = State(initialValue: docId != nil)
     }
 
@@ -49,6 +67,12 @@ struct DocsEditorView: View {
                     TextField("Document title", text: $title)
                         .font(.headline)
                         .padding()
+
+                    // Disappears the moment there's real content — a hint,
+                    // not a tutorial overlay that has to be dismissed.
+                    if isOnboardingDemo && text.characters.isEmpty {
+                        onboardingHintCard
+                    }
 
                     Divider()
                     formattingToolbar
@@ -69,16 +93,27 @@ struct DocsEditorView: View {
                 }
             }
         }
+        .overlay {
+            if showSaveConfetti {
+                ConfettiView(colors: [.magicGold, .magicBlue], symbol: "star.fill")
+            }
+        }
         .navigationTitle(docId == nil ? "New Document" : "Edit Document")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
+            if isOnboardingDemo, let onSkipped {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Skip for now", action: onSkipped)
+                        .font(.footnote)
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 if isSaving {
                     ProgressView()
                 } else {
-                    Button("Save") { Task { await save() } }
+                    Button(isOnboardingDemo ? "Save & Continue" : "Save") { Task { await save() } }
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
@@ -112,6 +147,24 @@ struct DocsEditorView: View {
             Text(resyncMessage ?? "A newer version of this document exists — reload to see it, or keep editing your current version.")
         }
         .task { await loadIfNeeded(force: false) }
+    }
+
+    // MARK: - Onboarding
+
+    private var onboardingHintCard: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Need something to say?")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.magicNavy)
+            Text("Try: \"Magic heading one. My First Document. Magic heading off. This is my first time using MagicScribe — pretty cool, right?\"")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.magicBlue.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal)
+        .padding(.bottom, 8)
     }
 
     // MARK: - Formatting toolbar
@@ -394,7 +447,10 @@ struct DocsEditorView: View {
             }
         } else {
             errorMessage = nil
-            let controller = VoiceEditController(language: { dictationLanguage.rawValue })
+            let controller = VoiceEditController(
+                context: isOnboardingDemo ? "ios_onboarding_demo_docs" : nil,
+                language: { dictationLanguage.rawValue }
+            )
             voiceEditController = controller
             let started = await controller.start()
             if started {
@@ -443,6 +499,10 @@ struct DocsEditorView: View {
             keptPageId = keptPageId ?? String(result.docId)
             if result.resyncNeeded {
                 resyncMessage = "This document changed elsewhere since you opened it."
+            }
+            if isOnboardingDemo {
+                showSaveConfetti = true
+                try? await Task.sleep(for: .seconds(1.2))
             }
             onSaved()
         } catch let DocsServiceError.saveFailed(message) {

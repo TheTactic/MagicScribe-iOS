@@ -28,7 +28,17 @@ struct OnboardingFlowView: View {
             case .appPreview:
                 AppPreviewView(coordinator: coordinator)
             case .demoDoc:
-                DemoDocView(coordinator: coordinator)
+                // The real editor, not a separate demo implementation —
+                // whatever they create here becomes their actual first
+                // saved document rather than a disposable preview.
+                NavigationStack {
+                    DocsEditorView(
+                        docId: nil,
+                        onSaved: { coordinator.completeDemo(.completed) },
+                        isOnboardingDemo: true,
+                        onSkipped: { coordinator.completeDemo(.skipped) }
+                    )
+                }
             case .celebration:
                 CelebrationView(coordinator: coordinator)
             case .paywall:
