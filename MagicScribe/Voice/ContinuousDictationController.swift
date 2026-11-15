@@ -26,6 +26,7 @@ final class ContinuousDictationController {
 
     let formattingState: DocFormattingState
     private let speechService: SpeechService
+    private let docsService: DocsService
     private let chunkDuration: TimeInterval
     private let languageProvider: () -> String
 
@@ -37,7 +38,20 @@ final class ContinuousDictationController {
     private var currentRecorder: AudioRecorder?
     private var loopTask: Task<Void, Never>?
 
+    /// Per-session state for the Claude refine pass — reset in `start()`,
+    /// mirrors web's module-level `runningContext`/`lastChunkInserted`/
+    /// `lastChunkEndedWithStop` (docs.js), which track only what's been
+    /// dictated *this session*, not the document's pre-existing content.
+    private var runningContext = ""
+    private var lastChunkInserted = ""
+    private var lastChunkEndedWithStop = false
+
     var onChunkApplied: ((AttributedString) -> Void)?
+    /// Fired when Claude's refine pass finds a word split across a chunk
+    /// boundary and corrects the *previous* chunk retroactively — the
+    /// caller finds the last occurrence of the first string in its live
+    /// text and replaces it with the second.
+    var onPreviousChunkCorrected: ((String, String) -> Void)?
     var onHalted: ((HaltReason) -> Void)?
     var onUndoRequested: (() -> Void)?
     var onRedoRequested: (() -> Void)?
@@ -45,6 +59,7 @@ final class ContinuousDictationController {
     init(
         formattingState: DocFormattingState,
         speechService: SpeechService? = nil,
+        docsService: DocsService = DocsService(),
         chunkDuration: TimeInterval = 50,
         language: @escaping () -> String
     ) {
@@ -53,6 +68,7 @@ final class ContinuousDictationController {
         // default argument expression evaluates in a context that doesn't
         // reliably inherit this MainActor-isolated init's isolation.
         self.speechService = speechService ?? SpeechService()
+        self.docsService = docsService
         self.chunkDuration = chunkDuration
         self.languageProvider = language
     }
@@ -62,6 +78,9 @@ final class ContinuousDictationController {
         guard !isActive else { return true }
         guard await AudioRecorder().requestPermission() else { return false }
         isActive = true
+        runningContext = ""
+        lastChunkInserted = ""
+        lastChunkEndedWithStop = false
         let myGeneration = generation
         loopTask = Task { [weak self] in
             await self?.recordLoop(generation: myGeneration)
@@ -138,7 +157,45 @@ final class ContinuousDictationController {
                 }
 
                 let tokens = MagicCommandParser.tokenize(transcript)
-                let result = formattingState.buildRuns(from: tokens)
+                let hasFormatting = tokens.contains {
+                    if case .command = $0 { return true }
+                    return false
+                }
+
+                let result: DocFormattingState.ChunkResult
+                if hasFormatting {
+                    // Any magic command in the chunk skips the refine pass
+                    // entirely — faithful to web's own `hasFormatting`
+                    // branch: refine.php takes one flat string, not a
+                    // structured token sequence, so a formatted chunk is
+                    // never a candidate for it on web either. Not a gap
+                    // specific to this port.
+                    result = formattingState.buildRuns(from: tokens)
+                } else {
+                    var plainText = tokens.compactMap { token -> String? in
+                        if case .text(let value) = token { return value }
+                        return nil
+                    }.joined().trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    if !plainText.isEmpty {
+                        if let refined = await refineWithTimeout(transcript: plainText) {
+                            if let prevFix = refined.prevFix, !lastChunkInserted.isEmpty {
+                                onPreviousChunkCorrected?(lastChunkInserted, prevFix)
+                            }
+                            if let refinedText = refined.refined, !refinedText.isEmpty {
+                                plainText = refinedText
+                            }
+                        }
+                        plainText = normalizePunctuation(plainText)
+                        if lastChunkEndedWithStop {
+                            plainText = " " + plainText.prefix(1).uppercased() + plainText.dropFirst()
+                        }
+                        lastChunkEndedWithStop = plainText.range(of: "[.?]\\s*$", options: .regularExpression) != nil
+                        runningContext = trimContext(runningContext + " " + plainText)
+                        lastChunkInserted = plainText
+                    }
+                    result = formattingState.buildRuns(from: [.text(plainText)])
+                }
                 onChunkApplied?(result.text)
 
                 var shouldStop = !isActive
@@ -167,5 +224,49 @@ final class ContinuousDictationController {
                 return
             }
         }
+    }
+
+    /// Races the refine call against a 7s timeout (matching web's
+    /// `AbortController`) — a sibling task cancels the refine task, and
+    /// `URLSession`'s async API honors Swift task cancellation, so this is
+    /// a real cancel, not just a race. Any failure (timeout, network,
+    /// decoding) returns nil, same as web's catch-and-proceed-with-raw-text.
+    private func refineWithTimeout(transcript: String) async -> RefineResponse? {
+        let refineTask = Task {
+            try await docsService.refine(transcript: transcript, context: runningContext, prevChunk: lastChunkInserted)
+        }
+        let timeoutTask = Task {
+            try? await Task.sleep(for: .seconds(7))
+            refineTask.cancel()
+        }
+        defer { timeoutTask.cancel() }
+        return try? await refineTask.value
+    }
+
+    /// Ported directly from docs.js's two local (non-Claude) fixups:
+    /// within-chunk, a full stop or question mark followed by whitespace
+    /// gets a double space and the next letter capitalized.
+    private func normalizePunctuation(_ text: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: "([.?])\\s+([a-zA-Z])") else { return text }
+        let ns = text as NSString
+        var output = ""
+        var lastEnd = 0
+        for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            output += ns.substring(with: NSRange(location: lastEnd, length: match.range.location - lastEnd))
+            let punctuation = ns.substring(with: match.range(at: 1))
+            let letter = ns.substring(with: match.range(at: 2)).uppercased()
+            output += punctuation + "  " + letter
+            lastEnd = match.range.location + match.range.length
+        }
+        output += ns.substring(from: lastEnd)
+        return output
+    }
+
+    /// Ported from docs.js's trimContext — keeps the running context
+    /// bounded so refine's token cost doesn't grow unbounded over a long
+    /// dictation session.
+    private func trimContext(_ text: String, maxWords: Int = 300) -> String {
+        let words = text.split(separator: " ").filter { !$0.isEmpty }
+        return words.suffix(maxWords).joined(separator: " ")
     }
 }

@@ -389,6 +389,15 @@ struct DocsEditorView: View {
             controller.onChunkApplied = { chunk in
                 text += chunk
             }
+            controller.onPreviousChunkCorrected = { old, new in
+                // Last occurrence, not first — matches web's lastIndexOf,
+                // since the same phrase could coincidentally appear
+                // earlier in the document and correcting that instead
+                // would be a real (if rare) correctness bug.
+                if let range = text.range(of: old, options: [.backwards]) {
+                    text.replaceSubrange(range, with: AttributedString(new))
+                }
+            }
             controller.onUndoRequested = { performUndo() }
             controller.onRedoRequested = { performRedo() }
             controller.onHalted = { reason in

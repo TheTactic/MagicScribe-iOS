@@ -121,3 +121,38 @@ nonisolated struct EditResponse: Decodable {
     let operations: [EditOperation]?
     let error: String?
 }
+
+/// api/refine.php's request shape — a plain-dictation chunk (no magic
+/// commands) plus the session's running context and the previously
+/// inserted chunk, so Claude can fix mishears and correct a word split
+/// across the chunk boundary.
+nonisolated struct RefineRequest: Encodable {
+    let transcript: String
+    let context: String
+    let prevChunk: String
+
+    enum CodingKeys: String, CodingKey {
+        case transcript, context
+        case prevChunk = "prev_chunk"
+    }
+}
+
+/// Always a normal 200, even when the docs_minutes cap is hit — that
+/// branch is a soft, non-blocking "here's your transcript back unchanged"
+/// response (`upgrade: true`), not a thrown error like Voice Edit's 402.
+/// `refined`/`prevFix` are nil only on a genuine request failure the
+/// caller should treat as "proceed with the raw transcript."
+nonisolated struct RefineResponse: Decodable {
+    let success: Bool
+    let refined: String?
+    let prevFix: String?
+    let upgrade: Bool?
+    let message: String?
+    let upgradeUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case success, refined, upgrade, message
+        case prevFix = "prev_fix"
+        case upgradeUrl = "upgrade_url"
+    }
+}

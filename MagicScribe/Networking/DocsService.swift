@@ -121,4 +121,15 @@ final class DocsService {
             )
         }
     }
+
+    /// Claude-based cleanup for a plain-dictation chunk — corrects mishears
+    /// and fixes a word split across the chunk boundary. Always a normal
+    /// 200; free-plan/cap-exceeded/failure cases all come back as a
+    /// pass-through `refined == transcript`, never a thrown error, so the
+    /// caller doesn't need special-case handling the way Voice Edit's 402
+    /// does.
+    func refine(transcript: String, context: String, prevChunk: String) async throws -> RefineResponse {
+        let request = RefineRequest(transcript: transcript, context: context, prevChunk: prevChunk)
+        return try await client.post(.refine, body: request, authenticated: true)
+    }
 }
