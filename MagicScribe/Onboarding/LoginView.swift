@@ -130,6 +130,12 @@ struct LoginView: View {
             // auth_token.php's only 403 is the unverified-email gate — offer the
             // way back in rather than leaving an unverified, signed-out user stuck.
             showResendOption = (status == 403)
+        } catch APIError.unauthorized {
+            // auth_token.php's 401 (wrong email/password) is special-cased by
+            // APIClient.send() before the message-decoding branch runs, so it
+            // never carries the server's real text — login is the one call
+            // site where a 401 can only mean this (no bearer token is sent).
+            errorMessage = "Invalid email or password."
         } catch {
             errorMessage = "Couldn't reach the server — check your connection and try again."
         }
@@ -147,6 +153,8 @@ struct LoginView: View {
             coordinator.recordSignupAccount(account)
         } catch let APIError.server(_, message) {
             errorMessage = message ?? "Something went wrong — please try again."
+        } catch APIError.unauthorized {
+            errorMessage = "Invalid email or password."
         } catch {
             errorMessage = "Couldn't reach the server — check your connection and try again."
         }
