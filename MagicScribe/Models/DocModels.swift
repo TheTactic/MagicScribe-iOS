@@ -105,6 +105,24 @@ nonisolated struct DocsSaveResponse: Decodable {
     }
 }
 
+/// A gallery image attached to a document — extracted out of `content_html`'s
+/// `<img>` tags by `DocHTMLBridge.extractImages` (web authors them inline;
+/// this codebase's editor has no inline-image attribute, so they're
+/// surfaced as a separate, non-positional collection instead). `url` alone
+/// is a stable identity — upload filenames are random 32-hex, already unique.
+nonisolated struct DocImage: Codable, Identifiable, Equatable {
+    let url: String
+    var id: String { url }
+}
+
+/// api/upload.php's response shape — always decodes, check `.success`,
+/// same reasoning as every other "always 200" response type in this app.
+nonisolated struct UploadImageResponse: Decodable {
+    let success: Bool
+    let url: String?
+    let error: String?
+}
+
 nonisolated struct DocsDeleteRequest: Encodable {
     let action: String
     let docId: Int

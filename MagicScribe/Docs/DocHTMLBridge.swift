@@ -341,6 +341,56 @@ enum DocHTMLBridge {
         return html
     }
 
+    // MARK: - Image extraction/reinjection
+
+    private static let imgTagRegex = try! NSRegularExpression(pattern: "<img\\b[^>]*>", options: .caseInsensitive)
+    private static let imgSrcRegex = try! NSRegularExpression(pattern: #"src="([^"]*)""#, options: .caseInsensitive)
+
+    /// Pulls every `<img>` tag out of raw HTML before it reaches `parse()`
+    /// — the tag switch above has no `img` case, so an unextracted `<img>`
+    /// would be silently dropped (`default: break` consumes the match but
+    /// appends nothing to `result`). Must run unconditionally on every
+    /// load, not just when the gallery UI is actively used, so a
+    /// web-authored document's existing inline images are preserved rather
+    /// than destroyed the first time the document is touched on mobile.
+    static func extractImages(from html: String) -> (remainingHTML: String, images: [DocImage]) {
+        let ns = html as NSString
+        let fullRange = NSRange(location: 0, length: ns.length)
+        let matches = imgTagRegex.matches(in: html, range: fullRange)
+        guard !matches.isEmpty else { return (html, []) }
+
+        var images: [DocImage] = []
+        var remaining = ""
+        var cursor = 0
+        for match in matches {
+            let tagRange = match.range
+            if tagRange.location > cursor {
+                remaining += ns.substring(with: NSRange(location: cursor, length: tagRange.location - cursor))
+            }
+            let tag = ns.substring(with: tagRange)
+            if let src = firstMatch(imgSrcRegex, in: tag) {
+                images.append(DocImage(url: unescapeEntities(src)))
+            }
+            cursor = tagRange.location + tagRange.length
+        }
+        if cursor < ns.length {
+            remaining += ns.substring(from: cursor)
+        }
+        return (remaining, images)
+    }
+
+    /// Appends gallery images onto rendered HTML, matching web's own
+    /// `insertDocImage()` tag shape byte-for-byte so web can still load and
+    /// display what mobile saves. Always at the end — this editor has no
+    /// concept of an image's inline position, per the approved v1 tradeoff.
+    static func appendImages(_ images: [DocImage], to html: String) -> String {
+        guard !images.isEmpty else { return html }
+        let imageTags = images.map {
+            "<img src=\"\(escapeEntities($0.url))\" class=\"doc-img\" style=\"max-width:100%;display:block;margin:8px 0\" draggable=\"false\">"
+        }.joined()
+        return html + imageTags
+    }
+
     // MARK: - Heading visual style
 
     /// Shared with DocFormattingState so dictation-applied headings get the

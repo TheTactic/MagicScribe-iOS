@@ -1,4 +1,12 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
+
+/// Mirrors web's `#save-status` indicator (`.saving`/`.saved`/`.error`) —
+/// `.idle` is the one additional case needed before any save has happened.
+enum SaveStatus {
+    case idle, saving, saved, failed
+}
 
 /// Native AttributedString-backed rich text editor — no pixel canvas, no
 /// UIViewRepresentable/UITextView bridging (brand-new iOS 27 SwiftUI
@@ -43,6 +51,24 @@ struct DocsEditorView: View {
     @State private var isShowingFormatSheet = false
     @State private var showSaveConfetti = false
 
+    // MARK: Autosave — debounce 1.2s after the last edit, matching web's
+    // hardcoded setTimeout(persistDoc, 1200) exactly.
+    @State private var autosaveTask: Task<Void, Never>?
+    /// False until the initial load (or new-document setup) completes —
+    /// otherwise `loadIfNeeded`'s own `text =`/`title =` assignment would
+    /// be misread as a user edit and schedule a pointless immediate save.
+    @State private var isAutosaveArmed = false
+    @State private var saveStatus: SaveStatus = .idle
+
+    // MARK: Image gallery — a separate, non-inline collection (see
+    // DocHTMLBridge.extractImages/appendImages) rather than true inline
+    // placement, which this editor's AttributedString model has no
+    // attribute to support.
+    @State private var images: [DocImage] = []
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var isUploadingImage = false
+    @State private var viewingImage: DocImage?
+
     private let docsService = DocsService()
 
     init(
@@ -58,7 +84,32 @@ struct DocsEditorView: View {
         _isLoading = State(initialValue: docId != nil)
     }
 
+    // Split from `editorBody` below — chaining every modifier onto one
+    // expression (toolbar + 2 alerts + sheet + 4 onChange + task) made the
+    // Swift type-checker time out in Preview's slower compile mode. Two
+    // independently-inferred chains, not one giant one.
     var body: some View {
+        editorBody
+            .alert(
+                "Couldn't save",
+                isPresented: isErrorAlertPresented
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "")
+            }
+            .alert(
+                "This document changed elsewhere",
+                isPresented: isResyncAlertPresented
+            ) {
+                Button("Reload", role: .destructive) { Task { await loadIfNeeded(force: true) } }
+                Button("Keep my version", role: .cancel) {}
+            } message: {
+                Text(resyncMessage ?? "A newer version of this document exists — reload to see it, or keep editing your current version.")
+            }
+    }
+
+    private var editorBody: some View {
         Group {
             if isLoading {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -67,6 +118,16 @@ struct DocsEditorView: View {
                     TextField("Document title", text: $title)
                         .font(.headline)
                         .padding()
+
+                    if let saveStatusCaption {
+                        Text(saveStatusCaption)
+                            .font(.caption)
+                            .foregroundStyle(saveStatus == .failed ? .red : .secondary)
+                            .padding(.horizontal)
+                            .padding(.bottom, 8)
+                    }
+
+                    imageGalleryStrip
 
                     // Disappears the moment there's real content — a hint,
                     // not a tutorial overlay that has to be dismissed.
@@ -129,24 +190,34 @@ struct DocsEditorView: View {
                 }
             }
         }
-        .alert(
-            "Couldn't save",
-            isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage ?? "")
+        .sheet(item: $viewingImage) { image in
+            imageViewerSheet(image)
         }
-        .alert(
-            "This document changed elsewhere",
-            isPresented: Binding(get: { resyncMessage != nil }, set: { if !$0 { resyncMessage = nil } })
-        ) {
-            Button("Reload", role: .destructive) { Task { await loadIfNeeded(force: true) } }
-            Button("Keep my version", role: .cancel) {}
-        } message: {
-            Text(resyncMessage ?? "A newer version of this document exists — reload to see it, or keep editing your current version.")
+        .onChange(of: text) { scheduleAutosave() }
+        .onChange(of: title) { scheduleAutosave() }
+        .onChange(of: images) { scheduleAutosave() }
+        .onChange(of: selectedPhotoItem) {
+            guard let item = selectedPhotoItem else { return }
+            Task { await uploadPickedPhoto(item) }
         }
         .task { await loadIfNeeded(force: false) }
+    }
+
+    private var isErrorAlertPresented: Binding<Bool> {
+        Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })
+    }
+
+    private var isResyncAlertPresented: Binding<Bool> {
+        Binding(get: { resyncMessage != nil }, set: { if !$0 { resyncMessage = nil } })
+    }
+
+    private var saveStatusCaption: String? {
+        switch saveStatus {
+        case .idle: nil
+        case .saving: "Saving…"
+        case .saved: "Saved"
+        case .failed: "Not saved"
+        }
     }
 
     // MARK: - Onboarding
@@ -165,6 +236,127 @@ struct DocsEditorView: View {
         .background(Color.magicBlue.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
         .padding(.horizontal)
         .padding(.bottom, 8)
+    }
+
+    // MARK: - Autosave
+
+    /// `loadIfNeeded`'s own `text =`/`title =`/`images =` assignments
+    /// trigger `.onChange(of:)`'s callback on SwiftUI's own next update
+    /// pass — confirmed via live testing to run *sooner* than a
+    /// `DispatchQueue.main.async`-deferred block, so that deferral alone
+    /// doesn't help: setting `isAutosaveArmed = true` there still lands
+    /// before the load-triggered onChange fires, scheduling a spurious
+    /// autosave of the just-loaded, unmodified content. A short real delay
+    /// — far longer than a single SwiftUI update pass (tied to the
+    /// ~16ms display refresh), imperceptible to a human — is what
+    /// actually guarantees landing after it.
+    private func armAutosave() {
+        Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            isAutosaveArmed = true
+        }
+    }
+
+    /// Cancel-and-restart idiom, same as `ContinuousDictationController
+    /// .refineWithTimeout`'s timeout racing — not a new pattern. Fires
+    /// 1.2s after the *last* call, matching web's `scheduleSave()` exactly.
+    private func scheduleAutosave() {
+        guard isAutosaveArmed else { return }
+        autosaveTask?.cancel()
+        autosaveTask = Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            guard !Task.isCancelled else { return }
+            await save(isAutosave: true)
+        }
+    }
+
+    // MARK: - Image gallery
+
+    private var imageGalleryStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                    Group {
+                        if isUploadingImage {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "plus")
+                        }
+                    }
+                    .frame(width: 60, height: 60)
+                    .foregroundStyle(Color.magicNavy)
+                    .background(Color.magicBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                }
+                .disabled(isUploadingImage)
+
+                ForEach(images) { image in
+                    Button { viewingImage = image } label: {
+                        AsyncImage(url: URL(string: image.url)) { phase in
+                            if let loaded = phase.image {
+                                loaded.resizable().scaledToFill()
+                            } else {
+                                Color.secondary.opacity(0.15)
+                            }
+                        }
+                        .frame(width: 60, height: 60)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+    }
+
+    private func imageViewerSheet(_ image: DocImage) -> some View {
+        NavigationStack {
+            AsyncImage(url: URL(string: image.url)) { phase in
+                if let loaded = phase.image {
+                    loaded.resizable().scaledToFit()
+                } else {
+                    ProgressView()
+                }
+            }
+            .navigationTitle("Image")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { viewingImage = nil }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Remove", role: .destructive) {
+                        images.removeAll { $0.id == image.id }
+                        viewingImage = nil
+                    }
+                }
+            }
+        }
+    }
+
+    /// Uploads to the same api/upload.php web's Docs editor uses, then
+    /// attaches the result to the gallery — never positioned inline (see
+    /// DocHTMLBridge's doc comments for why). `item.supportedContentTypes`
+    /// gives the real UTType rather than assuming JPEG; upload.php itself
+    /// re-sniffs the actual bytes server-side regardless, but a correctly
+    /// declared Content-Type/filename extension is still the honest thing
+    /// to send.
+    private func uploadPickedPhoto(_ item: PhotosPickerItem) async {
+        selectedPhotoItem = nil
+        isUploadingImage = true
+        defer { isUploadingImage = false }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else { return }
+            let utType = item.supportedContentTypes.first
+            let mimeType = utType?.preferredMIMEType ?? "image/jpeg"
+            let ext = utType?.preferredFilenameExtension ?? "jpg"
+            let uploaded = try await docsService.uploadImage(data: data, fileName: "photo.\(ext)", mimeType: mimeType)
+            images.append(uploaded)
+        } catch {
+            errorMessage = "Couldn't upload that image — try again."
+        }
     }
 
     // MARK: - Formatting toolbar
@@ -478,7 +670,9 @@ struct DocsEditorView: View {
             title = "Untitled Document"
             text = AttributedString()
             keptPageId = nil
+            images = []
             isLoading = false
+            armAutosave()
             return
         }
         guard force || isLoading else { return }
@@ -489,6 +683,8 @@ struct DocsEditorView: View {
             title = result.title
             text = result.text
             keptPageId = result.keptPageId
+            images = result.images
+            armAutosave()
         } catch let DocsServiceError.loadFailed(message) {
             errorMessage = message
         } catch let APIError.server(_, message) {
@@ -500,28 +696,44 @@ struct DocsEditorView: View {
         }
     }
 
-    private func save() async {
-        isSaving = true
-        defer { isSaving = false }
+    /// `isAutosave` gates everything that would otherwise be disruptive
+    /// mid-typing: the blocking "Couldn't save"/"changed elsewhere" alerts
+    /// (web's autosave equivalent is silent — only the status caption
+    /// changes) and `onSaved()` itself, which for the onboarding flow
+    /// advances to the next step entirely — firing that from a background
+    /// autosave would sweep the user out of the editor just for pausing
+    /// while typing.
+    private func save(isAutosave: Bool = false) async {
+        saveStatus = .saving
+        if !isAutosave { isSaving = true }
+        defer { if !isAutosave { isSaving = false } }
         do {
-            let result = try await docsService.save(docId: docId, title: title, text: text, keptPageId: keptPageId)
+            let result = try await docsService.save(
+                docId: docId, title: title, text: text, keptPageId: keptPageId, images: images
+            )
             keptPageId = keptPageId ?? String(result.docId)
-            if result.resyncNeeded {
+            saveStatus = .saved
+            if result.resyncNeeded && !isAutosave {
                 resyncMessage = "This document changed elsewhere since you opened it."
             }
+            guard !isAutosave else { return }
             if isOnboardingDemo {
                 showSaveConfetti = true
                 try? await Task.sleep(for: .seconds(1.2))
             }
             onSaved()
         } catch let DocsServiceError.saveFailed(message) {
-            errorMessage = message
+            saveStatus = .failed
+            if !isAutosave { errorMessage = message }
         } catch let APIError.server(_, message) {
-            errorMessage = message ?? "Something went wrong — please try again."
+            saveStatus = .failed
+            if !isAutosave { errorMessage = message ?? "Something went wrong — please try again." }
         } catch APIError.unauthorized {
-            errorMessage = "Not signed in — please log in again."
+            saveStatus = .failed
+            if !isAutosave { errorMessage = "Not signed in — please log in again." }
         } catch {
-            errorMessage = "Couldn't reach the server — check your connection and try again."
+            saveStatus = .failed
+            if !isAutosave { errorMessage = "Couldn't reach the server — check your connection and try again." }
         }
     }
 }
