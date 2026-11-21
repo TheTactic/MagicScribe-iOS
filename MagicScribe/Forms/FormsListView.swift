@@ -52,6 +52,7 @@ struct FormsListView: View {
                     NavigationLink(value: FormEditorTarget.new) {
                         Image(systemName: "plus")
                     }
+                    .accessibilityLabel("New Form")
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
@@ -59,6 +60,7 @@ struct FormsListView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
+                    .accessibilityLabel("More options")
                 }
             }
             .alert(

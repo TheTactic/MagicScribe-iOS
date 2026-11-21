@@ -80,9 +80,9 @@ struct DocsFormatSheet: View {
 
                 Section("Alignment") {
                     HStack(spacing: 10) {
-                        alignmentButton(.left, systemImage: "text.alignleft")
-                        alignmentButton(.center, systemImage: "text.aligncenter")
-                        alignmentButton(.right, systemImage: "text.alignright")
+                        alignmentButton(.left, systemImage: "text.alignleft", label: "Align left")
+                        alignmentButton(.center, systemImage: "text.aligncenter", label: "Align center")
+                        alignmentButton(.right, systemImage: "text.alignright", label: "Align right")
                     }
                 }
 
@@ -118,7 +118,7 @@ struct DocsFormatSheet: View {
         }
     }
 
-    private func alignmentButton(_ value: AttributedString.TextAlignment, systemImage: String) -> some View {
+    private func alignmentButton(_ value: AttributedString.TextAlignment, systemImage: String, label: String) -> some View {
         let isOn = formattingState.alignment == value
         return Button {
             pushUndo()
@@ -134,6 +134,8 @@ struct DocsFormatSheet: View {
                 .background(isOn ? Color.magicBlue : Color.magicBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
     }
 
     private func listButton(_ kind: DocsListKind, systemImage: String, label: String) -> some View {
@@ -152,6 +154,7 @@ struct DocsFormatSheet: View {
                 .background(isOn ? Color.magicBlue : Color.magicBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
     }
 }
 

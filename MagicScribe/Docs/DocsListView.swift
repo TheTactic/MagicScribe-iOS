@@ -55,6 +55,7 @@ struct DocsListView: View {
                     NavigationLink(value: DocEditorTarget.new) {
                         Image(systemName: "plus")
                     }
+                    .accessibilityLabel("New Document")
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
@@ -64,6 +65,7 @@ struct DocsListView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
+                    .accessibilityLabel("More options")
                 }
             }
             .alert(

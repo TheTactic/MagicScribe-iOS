@@ -85,6 +85,7 @@ struct PaywallView: View {
                 } label: {
                     if isPurchasing {
                         ProgressView().frame(maxWidth: .infinity)
+                            .accessibilityLabel("Purchasing")
                     } else {
                         Text(tier.isCustomPricing ? "Contact sales" : "Subscribe")
                             .frame(maxWidth: .infinity)
@@ -103,6 +104,7 @@ struct PaywallView: View {
                 } label: {
                     if isRestoring {
                         ProgressView()
+                            .accessibilityLabel("Restoring purchases")
                     } else {
                         Text("Restore Purchases")
                     }

@@ -106,6 +106,7 @@ struct FormEditorView: View {
             ToolbarItem(placement: .primaryAction) {
                 if isSaving {
                     ProgressView()
+                        .accessibilityLabel("Saving")
                 } else {
                     Button("Save") { Task { await save() } }
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -363,6 +364,7 @@ private struct BatchAddFieldSheet: View {
                 .padding(8)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
+                .accessibilityLabel("Field labels, one per line")
             Spacer()
         }
     }

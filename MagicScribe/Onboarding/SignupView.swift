@@ -85,6 +85,7 @@ struct SignupView: View {
                         if isSubmitting {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
+                                .accessibilityLabel("Creating account")
                         } else {
                             Text("Create account")
                                 .frame(maxWidth: .infinity)

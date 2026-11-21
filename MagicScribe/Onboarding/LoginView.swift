@@ -72,6 +72,7 @@ struct LoginView: View {
                     } label: {
                         if isRecovering {
                             ProgressView().frame(maxWidth: .infinity)
+                                .accessibilityLabel("Resending")
                         } else {
                             Text("Resend verification code")
                                 .frame(maxWidth: .infinity)
@@ -90,6 +91,7 @@ struct LoginView: View {
                         if isSubmitting {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
+                                .accessibilityLabel("Logging in")
                         } else {
                             Text("Log In")
                                 .frame(maxWidth: .infinity)

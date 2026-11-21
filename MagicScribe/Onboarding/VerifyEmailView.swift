@@ -50,6 +50,7 @@ struct VerifyEmailView: View {
                 .frame(maxWidth: 220)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                 .focused($isCodeFieldFocused)
+                .accessibilityLabel("Verification code")
                 .onChange(of: code) { _, newValue in
                     code = String(newValue.filter(\.isNumber).prefix(6))
                     if code.count == 6 && !isSubmitting {
@@ -87,6 +88,7 @@ struct VerifyEmailView: View {
                 } label: {
                     if isSubmitting {
                         ProgressView().frame(maxWidth: .infinity)
+                            .accessibilityLabel("Verifying")
                     } else {
                         Text("Verify").frame(maxWidth: .infinity)
                     }

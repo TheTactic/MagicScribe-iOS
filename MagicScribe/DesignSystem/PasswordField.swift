@@ -32,6 +32,7 @@ struct PasswordField: View {
                     .imageScale(.small)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(isVisible ? "Hide password" : "Show password")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)

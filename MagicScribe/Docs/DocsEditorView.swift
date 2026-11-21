@@ -173,6 +173,7 @@ struct DocsEditorView: View {
             ToolbarItem(placement: .primaryAction) {
                 if isSaving {
                     ProgressView()
+                        .accessibilityLabel("Saving")
                 } else {
                     Button(isOnboardingDemo ? "Save & Continue" : "Save") { Task { await save() } }
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -288,8 +289,9 @@ struct DocsEditorView: View {
                     .background(Color.magicBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
                 }
                 .disabled(isUploadingImage)
+                .accessibilityLabel(isUploadingImage ? "Uploading photo" : "Add photo")
 
-                ForEach(images) { image in
+                ForEach(Array(images.enumerated()), id: \.element.id) { index, image in
                     Button { viewingImage = image } label: {
                         AsyncImage(url: URL(string: image.url)) { phase in
                             if let loaded = phase.image {
@@ -302,6 +304,7 @@ struct DocsEditorView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Attached image \(index + 1) of \(images.count)")
                 }
             }
             .padding(.horizontal)
@@ -318,6 +321,7 @@ struct DocsEditorView: View {
                     ProgressView()
                 }
             }
+            .accessibilityLabel("Document image")
             .navigationTitle("Image")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -375,17 +379,17 @@ struct DocsEditorView: View {
         VStack(spacing: 6) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    toolbarButton(systemImage: "bold", isOn: formattingState.boldOn) {
+                    toolbarButton(systemImage: "bold", label: "Bold", isOn: formattingState.boldOn) {
                         undoStack.push(text)
                         formattingState.toggleBold()
                         applyCurrentFormattingToSelection()
                     }
-                    toolbarButton(systemImage: "italic", isOn: formattingState.italicOn) {
+                    toolbarButton(systemImage: "italic", label: "Italic", isOn: formattingState.italicOn) {
                         undoStack.push(text)
                         formattingState.toggleItalic()
                         applyCurrentFormattingToSelection()
                     }
-                    toolbarButton(systemImage: "underline", isOn: formattingState.underlineOn) {
+                    toolbarButton(systemImage: "underline", label: "Underline", isOn: formattingState.underlineOn) {
                         undoStack.push(text)
                         formattingState.toggleUnderline()
                         applyCurrentFormattingToSelection()
@@ -393,10 +397,10 @@ struct DocsEditorView: View {
 
                     Divider().frame(height: 32)
 
-                    toolbarButton(systemImage: "arrow.uturn.backward", isOn: false, disabled: !undoStack.canUndo) {
+                    toolbarButton(systemImage: "arrow.uturn.backward", label: "Undo", isOn: false, disabled: !undoStack.canUndo) {
                         performUndo()
                     }
-                    toolbarButton(systemImage: "arrow.uturn.forward", isOn: false, disabled: !undoStack.canRedo) {
+                    toolbarButton(systemImage: "arrow.uturn.forward", label: "Redo", isOn: false, disabled: !undoStack.canRedo) {
                         performRedo()
                     }
 
@@ -405,7 +409,7 @@ struct DocsEditorView: View {
                     // Heading/font family+size/color/alignment/lists all
                     // live in one sheet behind this button instead of
                     // flattening ~16 controls into this row.
-                    toolbarButton(systemImage: "textformat", isOn: false) {
+                    toolbarButton(systemImage: "textformat", label: "Format", isOn: false) {
                         isShowingFormatSheet = true
                     }
                 }
@@ -481,6 +485,7 @@ struct DocsEditorView: View {
     private func toolbarButton(
         systemImage: String? = nil,
         text: String? = nil,
+        label: String,
         isOn: Bool,
         disabled: Bool = false,
         action: @escaping () -> Void
@@ -499,6 +504,8 @@ struct DocsEditorView: View {
         }
         .buttonStyle(.plain)
         .disabled(disabled)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
     }
 
     /// Applies the toolbar's just-toggled formatting state to whatever is
