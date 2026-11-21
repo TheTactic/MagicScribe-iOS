@@ -21,6 +21,13 @@ struct VerifyEmailView: View {
     @State private var deliveryWarning: String?
     @State private var resendCooldown = 0
     @FocusState private var isCodeFieldFocused: Bool
+    // This field is a mandatory, blocking step in onboarding — a fixed
+    // size here would mean a low-vision user literally can't make the
+    // code they need to read and enter any bigger. The width scales
+    // alongside it so a 6-character code at a large Dynamic Type size
+    // doesn't get clipped by a now-too-narrow fixed frame.
+    @ScaledMetric(relativeTo: .largeTitle) private var codeFontSize: CGFloat = 32
+    @ScaledMetric(relativeTo: .largeTitle) private var codeFieldMaxWidth: CGFloat = 220
 
     private let authService = AuthService()
 
@@ -44,10 +51,10 @@ struct VerifyEmailView: View {
                 .keyboardType(.numberPad)
                 #endif
                 .multilineTextAlignment(.center)
-                .font(.system(size: 32, weight: .bold, design: .monospaced))
+                .font(.system(size: codeFontSize, weight: .bold, design: .monospaced))
                 .kerning(8)
                 .padding(.vertical, 12)
-                .frame(maxWidth: 220)
+                .frame(maxWidth: codeFieldMaxWidth)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                 .focused($isCodeFieldFocused)
                 .accessibilityLabel("Verification code")

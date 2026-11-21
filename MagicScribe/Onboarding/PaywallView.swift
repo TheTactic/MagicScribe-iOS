@@ -12,6 +12,10 @@ struct PaywallView: View {
     @State private var isPurchasing = false
     @State private var isRestoring = false
     @State private var errorMessage: String?
+    // Preserves the deliberately-larger-than-largeTitle visual weight of
+    // the price while still scaling with Dynamic Type — a bare
+    // .system(size: 40) wouldn't scale at all.
+    @ScaledMetric(relativeTo: .largeTitle) private var priceFontSize: CGFloat = 40
 
     private enum BillingPeriod {
         case monthly
@@ -49,7 +53,7 @@ struct PaywallView: View {
 
             VStack(spacing: 4) {
                 Text(billingPeriod == .yearly ? tier.yearlyPriceText : tier.monthlyPriceText)
-                    .font(.system(size: 40, weight: .bold))
+                    .font(.system(size: priceFontSize, weight: .bold))
                     .foregroundStyle(Color.magicNavy)
                 Text(billingPeriod == .yearly ? "per year" : "per month")
                     .font(.footnote)
