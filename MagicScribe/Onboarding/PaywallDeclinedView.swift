@@ -11,7 +11,7 @@ struct PaywallDeclinedView: View {
 
             Image(systemName: "wand.and.stars")
                 .font(.system(size: 56))
-                .foregroundStyle(Color.magicGold)
+                .foregroundStyle(Color.magicGoldOnLight)
 
             VStack(spacing: 8) {
                 Text("You're in demo mode")
@@ -34,7 +34,7 @@ struct PaywallDeclinedView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.magicBlue)
+                .tint(Color.magicBlueButton)
 
                 Button("Continue") {
                     coordinator.finishOnboarding()

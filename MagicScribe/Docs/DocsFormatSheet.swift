@@ -131,7 +131,7 @@ struct DocsFormatSheet: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
                 .foregroundStyle(isOn ? .white : Color.magicNavy)
-                .background(isOn ? Color.magicBlue : Color.magicBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                .background(isOn ? Color.magicBlueButton : Color.magicBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
@@ -151,7 +151,7 @@ struct DocsFormatSheet: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
                 .foregroundStyle(isOn ? .white : Color.magicNavy)
-                .background(isOn ? Color.magicBlue : Color.magicBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                .background(isOn ? Color.magicBlueButton : Color.magicBlue.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isOn ? [.isSelected] : [])

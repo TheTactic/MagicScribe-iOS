@@ -22,7 +22,7 @@ struct SignupView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "person.crop.circle.badge.plus")
                         .font(.system(size: 44))
-                        .foregroundStyle(Color.magicGold)
+                        .foregroundStyle(Color.magicGoldOnLight)
                     Text("Create your account")
                         .font(.largeTitle.bold())
                         .foregroundStyle(Color.magicNavy)
@@ -92,7 +92,7 @@ struct SignupView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(Color.magicBlue)
+                    .tint(Color.magicBlueButton)
                     .disabled(!canSubmit || isSubmitting)
 
                     Button("Already have an account? Log In") {

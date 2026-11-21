@@ -36,7 +36,7 @@ struct VerifyEmailView: View {
             VStack(spacing: 8) {
                 Image(systemName: "envelope.badge.fill")
                     .font(.system(size: 44))
-                    .foregroundStyle(Color.magicGold)
+                    .foregroundStyle(Color.magicGoldOnLight)
                 Text("Check your email")
                     .font(.largeTitle.bold())
                     .foregroundStyle(Color.magicNavy)
@@ -101,7 +101,7 @@ struct VerifyEmailView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.magicBlue)
+                .tint(Color.magicBlueButton)
                 .disabled(code.count != 6 || isSubmitting)
 
                 Button {

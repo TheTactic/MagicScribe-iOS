@@ -111,7 +111,7 @@ struct DocsListView: View {
                 Label("New Document", systemImage: "plus.square.fill")
             }
             .buttonStyle(.borderedProminent)
-            .tint(Color.magicBlue)
+            .tint(Color.magicBlueButton)
             if let errorMessage {
                 Text(errorMessage)
                     .font(.footnote)

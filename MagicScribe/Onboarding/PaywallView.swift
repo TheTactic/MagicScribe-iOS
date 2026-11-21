@@ -40,7 +40,7 @@ struct PaywallView: View {
                 if let percent = tier.yearlySavingsPercent, billingPeriod == .yearly {
                     Text("Save \(percent)% with yearly")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.magicGold)
+                        .foregroundStyle(Color.magicGoldOnLight)
                 }
             }
 
@@ -96,7 +96,7 @@ struct PaywallView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.magicBlue)
+                .tint(Color.magicBlueButton)
                 .disabled(isPurchasing)
 
                 Text("Cancel anytime in Settings")

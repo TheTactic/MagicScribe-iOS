@@ -9,7 +9,7 @@ struct WelcomeView: View {
 
             Image(systemName: "wand.and.stars")
                 .font(.system(size: 56))
-                .foregroundStyle(Color.magicGold)
+                .foregroundStyle(Color.magicGoldOnLight)
 
             VStack(spacing: 8) {
                 Text("MagicScribe")
@@ -30,7 +30,7 @@ struct WelcomeView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color.magicBlue)
+                .tint(Color.magicBlueButton)
 
                 Button("Log In") {
                     coordinator.advance(to: .login)

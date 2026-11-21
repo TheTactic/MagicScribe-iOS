@@ -23,7 +23,7 @@ struct LoginView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "person.crop.circle.fill")
                         .font(.system(size: 44))
-                        .foregroundStyle(Color.magicGold)
+                        .foregroundStyle(Color.magicGoldOnLight)
                     Text("Log in")
                         .font(.largeTitle.bold())
                         .foregroundStyle(Color.magicNavy)
@@ -79,7 +79,7 @@ struct LoginView: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .tint(Color.magicBlue)
+                    .tint(Color.magicBlueButton)
                     .disabled(isRecovering)
                 }
 
@@ -98,7 +98,7 @@ struct LoginView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(Color.magicBlue)
+                    .tint(Color.magicBlueButton)
                     .disabled(!canSubmit || isSubmitting)
 
                     Button("Don't have an account? Sign Up") {

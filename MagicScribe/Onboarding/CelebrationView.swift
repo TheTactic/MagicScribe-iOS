@@ -30,6 +30,7 @@ struct CelebrationView: View {
                     coordinator.advance(to: .paywall)
                 } label: {
                     Text("Continue")
+                        .foregroundStyle(Color.magicNavy)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)

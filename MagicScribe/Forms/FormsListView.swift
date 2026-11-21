@@ -98,7 +98,7 @@ struct FormsListView: View {
                 Label("New Form", systemImage: "plus.square.fill")
             }
             .buttonStyle(.borderedProminent)
-            .tint(Color.magicBlue)
+            .tint(Color.magicBlueButton)
             if let errorMessage {
                 Text(errorMessage)
                     .font(.footnote)
