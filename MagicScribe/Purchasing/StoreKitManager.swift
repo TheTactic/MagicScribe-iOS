@@ -37,7 +37,7 @@ final class StoreKitManager {
         self.client = client
         updatesTask = Task { @MainActor [weak self] in
             for await update in Transaction.updates {
-                self?.handle(update)
+                await self?.handle(update)
             }
         }
     }
@@ -126,10 +126,23 @@ final class StoreKitManager {
         purchasedProductIDs.insert(transaction.productID)
     }
 
-    private func handle(_ update: VerificationResult<Transaction>) {
+    /// Fires for renewals, billing-retry successes, refunds/revocations, and
+    /// anything else StoreKit delivers outside the foreground `purchase()`
+    /// call — a renewal in particular would otherwise update only local
+    /// state and never reach the server at all, leaving a still-paying
+    /// subscriber's `users.plan` to silently go stale. Same server-verify-
+    /// before-finish gate as `purchase()`/`restorePurchases()`: on failure,
+    /// leave the transaction unfinished so StoreKit re-surfaces it (next
+    /// `Transaction.updates` delivery or `currentEntitlements` read) instead
+    /// of this one failure permanently dropping it.
+    private func handle(_ update: VerificationResult<Transaction>) async {
         guard let transaction = try? checkVerified(update) else { return }
-        purchasedProductIDs.insert(transaction.productID)
-        Task { await transaction.finish() }
+        do {
+            try await verifyWithServer(transaction)
+            await transaction.finish()
+        } catch {
+            // Left unfinished on purpose — see doc comment above.
+        }
     }
 
     private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
