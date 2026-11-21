@@ -8,10 +8,13 @@ nonisolated enum DocEditorTarget: Hashable {
 struct DocsListView: View {
     let onSignOut: () -> Void
 
+    @Environment(StoreKitManager.self) private var storeKit
     @State private var docs: [DocSummary] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var docPendingDelete: DocSummary?
+    @State private var isRestoringPurchases = false
+    @State private var restoreMessage: String?
 
     private let docsService = DocsService()
 
@@ -55,11 +58,21 @@ struct DocsListView: View {
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
+                        Button("Restore Purchases") { Task { await restorePurchases() } }
+                            .disabled(isRestoringPurchases)
                         Button("Sign Out", role: .destructive, action: onSignOut)
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
                 }
+            }
+            .alert(
+                "Restore Purchases",
+                isPresented: Binding(get: { restoreMessage != nil }, set: { if !$0 { restoreMessage = nil } })
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(restoreMessage ?? "")
             }
             .alert(
                 "Delete this document?",
@@ -143,6 +156,27 @@ struct DocsListView: View {
         }
     }
 
+    /// Self-serve resync for a signed-in user whose access ever looks
+    /// stale — not just a reinstall convenience. See
+    /// `StoreKitManager.restorePurchases()`'s own doc comment for why this
+    /// is also the manual workaround for the background renewal-listener
+    /// gap (a renewal transaction only updates local StoreKit state, never
+    /// the server, unless something re-runs this verify path).
+    private func restorePurchases() async {
+        isRestoringPurchases = true
+        defer { isRestoringPurchases = false }
+        do {
+            let found = try await storeKit.restorePurchases()
+            restoreMessage = found
+                ? "Your purchase has been restored."
+                : "No previous purchase found for this account."
+        } catch let StoreKitManagerError.serverVerificationFailed(message) {
+            restoreMessage = message
+        } catch {
+            restoreMessage = "Couldn't restore purchases — check your connection and try again."
+        }
+    }
+
     private func delete(_ doc: DocSummary) async {
         docPendingDelete = nil
         do {
@@ -156,4 +190,5 @@ struct DocsListView: View {
 
 #Preview {
     DocsListView(onSignOut: {})
+        .environment(StoreKitManager())
 }

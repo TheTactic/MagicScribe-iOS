@@ -69,13 +69,7 @@ final class StoreKitManager {
             // succeeds, so a failure leaves StoreKit free to re-surface the
             // transaction (via Transaction.updates/currentEntitlements) for
             // a retry instead of losing it.
-            let request = VerifyPurchaseRequest(transactionId: String(transaction.originalID))
-            let response: VerifyPurchaseResponse = try await client.post(.verifyPurchase, body: request, authenticated: true)
-            guard response.success, let plan = response.plan else {
-                throw StoreKitManagerError.serverVerificationFailed(response.error ?? "Couldn't verify your purchase.")
-            }
-            verifiedPlan = plan
-            purchasedProductIDs.insert(transaction.productID)
+            try await verifyWithServer(transaction)
             await transaction.finish()
             return .success
         case .userCancelled:
@@ -95,6 +89,41 @@ final class StoreKitManager {
             }
         }
         purchasedProductIDs = purchased
+    }
+
+    /// For a reinstall/new-device "I already subscribed" case, and as a
+    /// manual self-serve resync if a subscriber's access ever looks stale
+    /// (e.g. a renewal that arrived via the background `Transaction.updates`
+    /// listener, which — unlike this path — doesn't itself call the server).
+    /// `AppStore.sync()` forces StoreKit to re-fetch entitlements from Apple
+    /// before `Transaction.currentEntitlements` is read, which is what makes
+    /// this different from `refreshEntitlements()` (that one only reads
+    /// whatever StoreKit already has cached locally). Returns `false` when
+    /// there was genuinely nothing to restore (not an error — a free-tier
+    /// user simply has no entitlement to find).
+    @discardableResult
+    func restorePurchases() async throws -> Bool {
+        try await AppStore.sync()
+        for await entitlement in Transaction.currentEntitlements {
+            guard let transaction = try? checkVerified(entitlement) else { continue }
+            try await verifyWithServer(transaction)
+            return true
+        }
+        return false
+    }
+
+    /// Shared by `purchase(_:)` and `restorePurchases()` — the server's
+    /// plan, not local StoreKit state, is the real gate (see the type's own
+    /// doc comment), so both paths must go through this before either one
+    /// is allowed to claim success.
+    private func verifyWithServer(_ transaction: Transaction) async throws {
+        let request = VerifyPurchaseRequest(transactionId: String(transaction.originalID))
+        let response: VerifyPurchaseResponse = try await client.post(.verifyPurchase, body: request, authenticated: true)
+        guard response.success, let plan = response.plan else {
+            throw StoreKitManagerError.serverVerificationFailed(response.error ?? "Couldn't verify your purchase.")
+        }
+        verifiedPlan = plan
+        purchasedProductIDs.insert(transaction.productID)
     }
 
     private func handle(_ update: VerificationResult<Transaction>) {

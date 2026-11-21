@@ -10,6 +10,7 @@ struct PaywallView: View {
 
     @State private var billingPeriod: BillingPeriod = .yearly
     @State private var isPurchasing = false
+    @State private var isRestoring = false
     @State private var errorMessage: String?
 
     private enum BillingPeriod {
@@ -97,6 +98,19 @@ struct PaywallView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+                Button {
+                    Task { await restore() }
+                } label: {
+                    if isRestoring {
+                        ProgressView()
+                    } else {
+                        Text("Restore Purchases")
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .disabled(isRestoring || isPurchasing)
+
                 Button("Continue with demo") {
                     coordinator.declinePaywall()
                 }
@@ -129,6 +143,24 @@ struct PaywallView: View {
                 break
             case .pending:
                 errorMessage = "Purchase is pending approval."
+            }
+        } catch let StoreKitManagerError.serverVerificationFailed(message) {
+            errorMessage = message
+        } catch {
+            errorMessage = "Something went wrong — please try again."
+        }
+    }
+
+    private func restore() async {
+        errorMessage = nil
+        isRestoring = true
+        defer { isRestoring = false }
+        do {
+            let found = try await storeKit.restorePurchases()
+            if found {
+                coordinator.finishOnboarding()
+            } else {
+                errorMessage = "No previous purchase found for this account."
             }
         } catch let StoreKitManagerError.serverVerificationFailed(message) {
             errorMessage = message
