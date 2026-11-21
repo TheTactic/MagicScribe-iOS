@@ -50,7 +50,13 @@ final class AudioRecorder: NSObject, AVAudioRecorderDelegate {
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
             AVSampleRateKey: 44_100,
             AVNumberOfChannelsKey: 1,
-            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
+            // .medium's lossier compression was the one confirmed asymmetry
+            // vs. web's Opus/WebM path (which has no equivalent downgrade) —
+            // short, quiet command phrases ("magic bold on") are exactly
+            // what lossy artifacts hit hardest, more than long flowing
+            // sentences. .max costs negligible extra bytes for a short
+            // dictation chunk over a modern network.
+            AVEncoderAudioQualityKey: AVAudioQuality.max.rawValue,
         ]
 
         let newRecorder = try AVAudioRecorder(url: url, settings: settings)
