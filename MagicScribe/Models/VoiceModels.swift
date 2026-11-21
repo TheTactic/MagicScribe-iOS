@@ -130,10 +130,18 @@ nonisolated struct RefineRequest: Encodable {
     let transcript: String
     let context: String
     let prevChunk: String
+    /// Only set during onboarding ("ios_onboarding_demo_docs") — bypasses
+    /// the verified-email requirement server-side. A separate field from
+    /// `context` above (that one is the running document text used as
+    /// Claude's correction context, not a bypass marker) — nil for every
+    /// real app call, omitted entirely rather than encoding `null`, same
+    /// convention as `EditRequest.context`.
+    let demoContext: String?
 
     enum CodingKeys: String, CodingKey {
         case transcript, context
         case prevChunk = "prev_chunk"
+        case demoContext = "demo_context"
     }
 }
 

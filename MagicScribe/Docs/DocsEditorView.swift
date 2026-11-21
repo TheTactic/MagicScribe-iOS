@@ -576,6 +576,7 @@ struct DocsEditorView: View {
             errorMessage = nil
             let controller = ContinuousDictationController(
                 formattingState: formattingState,
+                demoContext: isOnboardingDemo ? "ios_onboarding_demo_docs" : nil,
                 language: { dictationLanguage.rawValue }
             )
             controller.onChunkApplied = { chunk in
@@ -709,7 +710,8 @@ struct DocsEditorView: View {
         defer { if !isAutosave { isSaving = false } }
         do {
             let result = try await docsService.save(
-                docId: docId, title: title, text: text, keptPageId: keptPageId, images: images
+                docId: docId, title: title, text: text, keptPageId: keptPageId, images: images,
+                context: isOnboardingDemo ? "ios_onboarding_demo_docs" : nil
             )
             keptPageId = keptPageId ?? String(result.docId)
             saveStatus = .saved

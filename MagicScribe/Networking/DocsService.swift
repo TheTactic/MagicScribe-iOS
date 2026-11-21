@@ -85,7 +85,8 @@ final class DocsService {
         title: String,
         text: AttributedString,
         keptPageId: String?,
-        images: [DocImage]
+        images: [DocImage],
+        context: String? = nil
     ) async throws -> (docId: Int, resyncNeeded: Bool) {
         let pageId = keptPageId ?? UUID().uuidString
         let html = DocHTMLBridge.appendImages(images, to: DocHTMLBridge.render(text))
@@ -97,7 +98,8 @@ final class DocsService {
             pages: [page],
             deletedPageIds: [],
             totalPages: 1,
-            fullSync: true
+            fullSync: true,
+            context: context
         )
         let response: DocsSaveResponse = try await client.post(.docs, body: request, authenticated: true)
         guard response.success, let savedId = response.docId?.intValue else {
@@ -142,8 +144,8 @@ final class DocsService {
     /// pass-through `refined == transcript`, never a thrown error, so the
     /// caller doesn't need special-case handling the way Voice Edit's 402
     /// does.
-    func refine(transcript: String, context: String, prevChunk: String) async throws -> RefineResponse {
-        let request = RefineRequest(transcript: transcript, context: context, prevChunk: prevChunk)
+    func refine(transcript: String, context: String, prevChunk: String, demoContext: String? = nil) async throws -> RefineResponse {
+        let request = RefineRequest(transcript: transcript, context: context, prevChunk: prevChunk, demoContext: demoContext)
         return try await client.post(.refine, body: request, authenticated: true)
     }
 

@@ -79,9 +79,14 @@ nonisolated struct DocsSaveRequest: Encodable {
     let deletedPageIds: [String]
     let totalPages: Int
     let fullSync: Bool
+    /// Only set during onboarding ("ios_onboarding_demo_docs") — bypasses
+    /// the verified-email requirement server-side for this one save. nil
+    /// for every real app call, omitted entirely rather than encoding
+    /// `null`, same convention as EditRequest.context.
+    let context: String?
 
     enum CodingKeys: String, CodingKey {
-        case action, title, pages
+        case action, title, pages, context
         case docId = "doc_id"
         case deletedPageIds = "deleted_page_ids"
         case totalPages = "total_pages"

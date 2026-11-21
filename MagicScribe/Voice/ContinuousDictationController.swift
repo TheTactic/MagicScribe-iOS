@@ -29,6 +29,12 @@ final class ContinuousDictationController {
     private let docsService: DocsService
     private let chunkDuration: TimeInterval
     private let languageProvider: () -> String
+    /// Only set during onboarding ("ios_onboarding_demo_docs") — bypasses
+    /// the verified-email requirement server-side on both calls this loop
+    /// makes (speech.php's transcribe, refine.php's correction pass). nil
+    /// for every real app call, matching VoiceEditController's identical
+    /// `context` parameter.
+    private let demoContext: String?
 
     /// Bumped only by `cancel()` — a hard stop that abandons whatever's
     /// in-flight right now. Graceful `stop()` leaves this unchanged so the
@@ -61,6 +67,7 @@ final class ContinuousDictationController {
         speechService: SpeechService? = nil,
         docsService: DocsService = DocsService(),
         chunkDuration: TimeInterval = 50,
+        demoContext: String? = nil,
         language: @escaping () -> String
     ) {
         self.formattingState = formattingState
@@ -70,6 +77,7 @@ final class ContinuousDictationController {
         self.speechService = speechService ?? SpeechService()
         self.docsService = docsService
         self.chunkDuration = chunkDuration
+        self.demoContext = demoContext
         self.languageProvider = language
     }
 
@@ -138,7 +146,7 @@ final class ContinuousDictationController {
 
             do {
                 let transcript = try await speechService.transcribe(
-                    fileURL: fileURL, language: languageProvider(), context: "docs"
+                    fileURL: fileURL, language: languageProvider(), context: demoContext ?? "docs"
                 )
                 recorder.discardRecording()
                 guard generation == myGeneration else { return }
@@ -217,6 +225,11 @@ final class ContinuousDictationController {
                 isActive = false
                 onHalted?(.planLimitReached(message ?? "You've reached your dictation limit this month."))
                 return
+            } catch APIError.unauthorized {
+                recorder.discardRecording()
+                isActive = false
+                onHalted?(.error("Not signed in — please log in again."))
+                return
             } catch {
                 recorder.discardRecording()
                 isActive = false
@@ -233,7 +246,9 @@ final class ContinuousDictationController {
     /// decoding) returns nil, same as web's catch-and-proceed-with-raw-text.
     private func refineWithTimeout(transcript: String) async -> RefineResponse? {
         let refineTask = Task {
-            try await docsService.refine(transcript: transcript, context: runningContext, prevChunk: lastChunkInserted)
+            try await docsService.refine(
+                transcript: transcript, context: runningContext, prevChunk: lastChunkInserted, demoContext: demoContext
+            )
         }
         let timeoutTask = Task {
             try? await Task.sleep(for: .seconds(7))
