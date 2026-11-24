@@ -99,6 +99,11 @@ struct SignupView: View {
                         coordinator.advance(to: .login)
                     }
                     .font(.footnote)
+
+                    Text("By creating an account, you agree to our [Privacy Policy](https://magicscribe.tech/legal/privacy).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
             }
             .padding()
