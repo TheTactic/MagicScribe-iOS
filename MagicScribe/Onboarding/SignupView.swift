@@ -100,7 +100,7 @@ struct SignupView: View {
                     }
                     .font(.footnote)
 
-                    Text("By creating an account, you agree to our [Privacy Policy](https://magicscribe.tech/legal/privacy).")
+                    Text("By creating an account, you agree to our [Terms of Service](https://magicscribe.tech/legal/terms) and [Privacy Policy](https://magicscribe.tech/legal/privacy).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

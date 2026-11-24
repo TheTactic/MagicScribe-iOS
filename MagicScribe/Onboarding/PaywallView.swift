@@ -103,10 +103,11 @@ struct PaywallView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                // Apple's App Store Review Guidelines (3.1.2) require a
-                // Privacy Policy link reachable from the subscription
-                // purchase screen itself, not just App Store metadata.
-                Text("By subscribing, you agree to our [Privacy Policy](https://magicscribe.tech/legal/privacy).")
+                // Apple's App Store Review Guidelines (3.1.2) require both
+                // a Terms of Use (EULA) and Privacy Policy link reachable
+                // from the subscription purchase screen itself, not just
+                // App Store metadata.
+                Text("By subscribing, you agree to our [Terms of Service](https://magicscribe.tech/legal/terms) and [Privacy Policy](https://magicscribe.tech/legal/privacy).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
