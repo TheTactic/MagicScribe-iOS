@@ -15,6 +15,7 @@ struct DocsListView: View {
     @State private var docPendingDelete: DocSummary?
     @State private var isRestoringPurchases = false
     @State private var restoreMessage: String?
+    @State private var isShowingDeleteAccount = false
 
     private let docsService = DocsService()
 
@@ -62,6 +63,9 @@ struct DocsListView: View {
                         Button("Restore Purchases") { Task { await restorePurchases() } }
                             .disabled(isRestoringPurchases)
                         Button("Sign Out", role: .destructive, action: onSignOut)
+                        Button("Delete Account", role: .destructive) {
+                            isShowingDeleteAccount = true
+                        }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
@@ -90,6 +94,9 @@ struct DocsListView: View {
                 Button("Cancel", role: .cancel) {}
             } message: { doc in
                 Text("\"\(doc.title)\" will be permanently deleted.")
+            }
+            .sheet(isPresented: $isShowingDeleteAccount) {
+                DeleteAccountView(onDeleted: onSignOut)
             }
             .task { await loadDocs() }
             .refreshable { await loadDocs() }

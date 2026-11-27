@@ -59,6 +59,10 @@ nonisolated struct VerifyEmailCodeRequest: Encodable {
     let code: String
 }
 
+nonisolated struct DeleteAccountRequest: Encodable {
+    let password: String
+}
+
 nonisolated struct SimpleSuccessResponse: Decodable {
     let success: Bool
 }

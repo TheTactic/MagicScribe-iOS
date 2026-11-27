@@ -15,6 +15,7 @@ nonisolated enum APIEndpoint {
     case editDoc
     case refine
     case uploadImage
+    case deleteAccount
 
     var path: String {
         switch self {
@@ -32,6 +33,7 @@ nonisolated enum APIEndpoint {
         case .editDoc: "/api/edit.php"
         case .refine: "/api/refine.php"
         case .uploadImage: "/api/upload.php"
+        case .deleteAccount: "/api/delete_account.php"
         }
     }
 }

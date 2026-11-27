@@ -69,4 +69,15 @@ final class AuthService {
         )
         return response.emailDeliveryFailed ?? false
     }
+
+    /// Permanently deletes the account and all its data server-side
+    /// (App Store Guideline 5.1.1(v)). Requires the password as a re-check.
+    /// Clears the local token only after the server confirms — a failed
+    /// call leaves the user signed in with their account intact.
+    func deleteAccount(password: String) async throws {
+        let _: SimpleSuccessResponse = try await client.post(
+            .deleteAccount, body: DeleteAccountRequest(password: password), authenticated: true
+        )
+        tokenStore.deleteToken()
+    }
 }
