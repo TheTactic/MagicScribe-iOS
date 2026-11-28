@@ -20,11 +20,6 @@ struct AppPreviewView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
-                Text("Form building and filling are available on the web at magicscribe.tech.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
             }
 
             Spacer()

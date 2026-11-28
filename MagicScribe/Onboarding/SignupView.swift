@@ -26,7 +26,7 @@ struct SignupView: View {
                     Text("Create your account")
                         .font(.largeTitle.bold())
                         .foregroundStyle(Color.magicNavy)
-                    Text("Voice-first forms and docs — just speak.")
+                    Text("Voice-first documents — just speak.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
