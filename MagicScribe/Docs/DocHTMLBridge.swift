@@ -68,10 +68,17 @@ extension AttributeDynamicLookup {
 /// deliberately NOT part of this constraint — it's only ever set by this
 /// app's own toolbar/magic-command code, never by the system's built-in
 /// formatting controls, so there's nothing to constrain there.
+///
+/// `font` and `foregroundColor` must be in the scope even though they're
+/// unconstrained: a TextEditor with a formatting definition ignores every
+/// attribute outside its scope, so without them headings, font family/size,
+/// and text color were stored but never rendered on screen.
 nonisolated struct DocsAttributeScope: AttributeScope {
     let inlinePresentationIntent: AttributeScopes.FoundationAttributes.InlinePresentationIntentAttribute
     let underlineStyle: AttributeScopes.SwiftUIAttributes.UnderlineStyleAttribute
     let textAlignment: AttributeScopes.CoreTextAttributes.TextAlignmentAttribute
+    let font: AttributeScopes.SwiftUIAttributes.FontAttribute
+    let foregroundColor: AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute
 }
 
 extension AttributeScopes {
